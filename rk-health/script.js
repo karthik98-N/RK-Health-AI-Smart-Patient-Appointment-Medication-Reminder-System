@@ -543,34 +543,93 @@ document.getElementById('genSummaryBtn')?.addEventListener('click', () => genera
 
 /* ---------- Add Medication Action ---------- */
 
-document.querySelector('#section-medications .btn-primary')?.addEventListener('click', async () => {
-  const name = prompt("Enter medicine name (e.g., Atorvastatin):");
-  if (!name) return;
-  const dose = prompt("Enter dosage (e.g., 10mg):");
-  if (!dose) return;
-  const freq = prompt("Enter frequency (e.g., Once daily):");
-  if (!freq) return;
-  const scheduleStr = prompt("Enter schedules separated by comma (e.g., Morning,Night):");
-  if (!scheduleStr) return;
-  const schedule = scheduleStr.split(',').map(s => s.trim());
-  const phone = prompt("Enter patient phone number (optional):");
+const addMedModal = document.getElementById('addMedicationModal');
+const medPatientSelect = document.getElementById('medPatientSelect');
+const medNewPatientInput = document.getElementById('medNewPatientInput');
+const medPhoneInput = document.getElementById('medPhoneInput');
+
+document.querySelector('#section-medications .btn-primary')?.addEventListener('click', () => {
+  document.getElementById('addMedicationForm').reset();
+  medNewPatientInput.style.display = 'none';
+  medNewPatientInput.removeAttribute('required');
+
+  medPatientSelect.innerHTML = '<option value="">Select a patient...</option><option value="NEW_PATIENT">-- Add New Patient --</option>';
+  if (window.patientsList && window.patientsList.length > 0) {
+    const names = [...new Set(window.patientsList.map(p => p.name))];
+    names.forEach(name => {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      medPatientSelect.appendChild(opt);
+    });
+  }
+
+  addMedModal?.classList.add('show');
+});
+
+function closeMedicationModal() {
+  addMedModal?.classList.remove('show');
+}
+document.getElementById('closeMedModalBtn')?.addEventListener('click', closeMedicationModal);
+document.getElementById('cancelMedModalBtn')?.addEventListener('click', closeMedicationModal);
+document.querySelector('[data-close-med]')?.addEventListener('click', closeMedicationModal);
+
+medPatientSelect?.addEventListener('change', (e) => {
+  const val = e.target.value;
+  if (val === 'NEW_PATIENT') {
+    medNewPatientInput.style.display = 'block';
+    medNewPatientInput.setAttribute('required', 'required');
+    medPhoneInput.value = '';
+  } else {
+    medNewPatientInput.style.display = 'none';
+    medNewPatientInput.removeAttribute('required');
+    const p = window.patientsList.find(x => x.name === val);
+    if (p) {
+      medPhoneInput.value = p.phone || '';
+    }
+  }
+});
+
+document.getElementById('addMedicationForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  let patientName = medPatientSelect.value;
+  if (patientName === 'NEW_PATIENT') {
+    patientName = medNewPatientInput.value.trim();
+  }
+
+  if (!patientName) {
+    showToast('error', 'Error', 'Please select or enter a patient name.');
+    return;
+  }
+
+  const name = document.getElementById('medNameInput').value.trim();
+  const dose = document.getElementById('medDoseInput').value.trim();
+  const freq = document.getElementById('medFreqSelect').value;
+  const scheduleStr = document.getElementById('medScheduleInput').value.trim();
+  const schedule = scheduleStr.split(',').map(s => s.trim()).filter(s => s.length > 0);
+  const phone = medPhoneInput.value.trim();
 
   const payload = {
     name, dose, freq, schedule, phone,
-    patientName: 'Anita Sharma',
+    patientName,
     status: 'Pending',
     compliance: 100,
     next_time: 'Tomorrow, 8:00 AM'
   };
 
+  const saveBtn = document.getElementById('saveMedicationBtn');
+  if (saveBtn) saveBtn.disabled = true;
+
   try {
     const data = await fetchAPI('/api/medications', 'POST', payload);
     if (data.success) {
-      showToast('success', 'Medication Added', `${name} ${dose} saved.`);
+      showToast('success', 'Medication Added', `${name} ${dose} saved for ${patientName}.`);
+      closeMedicationModal();
       loadMedications();
+      loadPatients();
 
-      // If phone is valid and configured, send SMS reminder!
-      if (phone && phone.trim().length > 5) {
+      if (phone && phone.length > 5) {
         await fetchAPI('/api/send-sms', 'POST', {
           phone: phone,
           message: `RK Health Reminder: Please take your ${name} ${dose} (${freq}) as scheduled.`
@@ -579,6 +638,8 @@ document.querySelector('#section-medications .btn-primary')?.addEventListener('c
     }
   } catch (err) {
     showToast('error', 'Error', 'Failed to save medication reminder.');
+  } finally {
+    if (saveBtn) saveBtn.disabled = false;
   }
 });
 

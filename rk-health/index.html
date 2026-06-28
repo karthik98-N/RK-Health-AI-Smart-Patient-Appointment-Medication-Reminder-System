@@ -495,6 +495,58 @@
   </div>
 </div>
 
+<!-- Add Medication Modal -->
+<div class="modal-container" id="addMedicationModal" aria-hidden="true">
+  <div class="modal-backdrop" data-close-med></div>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="medModalTitle">
+    <header class="modal-head">
+      <div class="card-title"><i class="fa-solid fa-pills icon-blue-soft"></i><h3 id="medModalTitle">Add Medication Schedule</h3></div>
+      <button class="icon-btn" id="closeMedModalBtn" aria-label="Close modal"><i class="fa-solid fa-xmark"></i></button>
+    </header>
+    <div class="modal-body">
+      <form id="addMedicationForm">
+        <div class="field mt">
+          <label for="medPatientSelect">Patient Name</label>
+          <select id="medPatientSelect" required>
+            <option value="">Select a patient...</option>
+            <option value="NEW_PATIENT">-- Add New Patient --</option>
+          </select>
+          <input type="text" id="medNewPatientInput" placeholder="Enter patient name" style="display: none; margin-top: 8px;" />
+        </div>
+        <div class="field mt">
+          <label for="medNameInput">Medication Name</label>
+          <input type="text" id="medNameInput" placeholder="e.g., Atorvastatin" required />
+        </div>
+        <div class="field mt">
+          <label for="medDoseInput">Dosage</label>
+          <input type="text" id="medDoseInput" placeholder="e.g., 10mg" required />
+        </div>
+        <div class="field mt">
+          <label for="medFreqSelect">Frequency</label>
+          <select id="medFreqSelect" required>
+            <option value="Once daily">Once daily</option>
+            <option value="Twice daily">Twice daily</option>
+            <option value="Three times daily">Three times daily</option>
+            <option value="As needed">As needed</option>
+          </select>
+        </div>
+        <div class="field mt">
+          <label for="medScheduleInput">Schedule Times (comma-separated)</label>
+          <input type="text" id="medScheduleInput" placeholder="e.g., Morning, Night" required />
+        </div>
+        <div class="field mt">
+          <label for="medPhoneInput">Patient Phone (for SMS notifications)</label>
+          <input type="tel" id="medPhoneInput" placeholder="e.g., +919848215798" />
+        </div>
+      </form>
+    </div>
+    <footer class="modal-foot">
+      <button class="btn btn-outline" id="cancelMedModalBtn">Cancel</button>
+      <button class="btn btn-primary" id="saveMedicationBtn" form="addMedicationForm">Save Reminder</button>
+    </footer>
+  </div>
+</div>
+
 <!-- ============= TOASTS ============= -->
 <div class="toast-container" id="toastContainer" aria-live="polite" aria-atomic="true"></div>
 
