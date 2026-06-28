@@ -2,6 +2,55 @@
    RK Health – Backend-Integrated UI Actions
    ========================================================= */
 
+// Paste your deployed Google Apps Script Web App URL here to run without the Flask server
+const APPS_SCRIPT_URL = ""; 
+
+async function fetchAPI(endpoint, method = 'GET', body = null) {
+  if (APPS_SCRIPT_URL) {
+    if (method === 'GET') {
+      const action = endpoint.split('/').pop(); // 'patients', 'medications', or 'appointments'
+      const response = await fetch(`${APPS_SCRIPT_URL}?action=${action}`);
+      return response.json();
+    } else {
+      let action = "";
+      let payload = body ? JSON.parse(JSON.stringify(body)) : {};
+      
+      if (endpoint === '/api/appointments') {
+        action = 'addAppointment';
+      } else if (endpoint === '/api/medications') {
+        action = 'addMedication';
+      } else if (endpoint.includes('/taken')) {
+        action = 'medicationTaken';
+        payload.id = endpoint.split('/')[3];
+      } else if (method === 'DELETE' && endpoint.startsWith('/api/medications/')) {
+        action = 'deleteMedication';
+        payload.id = endpoint.split('/').pop();
+      } else if (endpoint === '/api/generate-summary') {
+        action = 'generateSummary';
+      } else if (endpoint === '/api/send-sms') {
+        action = 'sendSMS';
+      }
+      
+      payload.action = action;
+      
+      const response = await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        redirect: 'follow',
+        body: JSON.stringify(payload)
+      });
+      return response.json();
+    }
+  } else {
+    const options = { method };
+    if (body) {
+      options.headers = { 'Content-Type': 'application/json' };
+      options.body = JSON.stringify(body);
+    }
+    const response = await fetch(endpoint, options);
+    return response.json();
+  }
+}
+
 /* ---------- Sidebar / Mobile menu ---------- */
 const sidebar = document.getElementById('sidebar');
 const overlay = document.getElementById('sidebarOverlay');
@@ -80,24 +129,22 @@ window.patientsList = [];
 
 async function loadPatients() {
   try {
-    const res = await fetch('/api/patients');
-    const data = await res.json();
+    const data = await fetchAPI('/api/patients');
     window.patientsList = data;
     renderPatients(data);
   } catch (err) {
     console.error('Failed to load patients:', err);
-    showToast('error', 'Error', 'Failed to load patient records from backend.');
+    showToast('error', 'Error', 'Failed to load patient records.');
   }
 }
 
 async function loadMedications() {
   try {
-    const res = await fetch('/api/medications');
-    const data = await res.json();
+    const data = await fetchAPI('/api/medications');
     renderMedications(data);
   } catch (err) {
     console.error('Failed to load medications:', err);
-    showToast('error', 'Error', 'Failed to load medications from backend.');
+    showToast('error', 'Error', 'Failed to load medications.');
   }
 }
 
@@ -192,8 +239,7 @@ window.editPatient = function(name) {
 
 window.markTaken = async function(id, name) {
   try {
-    const res = await fetch(`/api/medications/${id}/taken`, { method: 'POST' });
-    const data = await res.json();
+    const data = await fetchAPI(`/api/medications/${id}/taken`, 'POST');
     if (data.success) {
       showToast('success', 'Marked as Taken', `${name} taken successfully.`);
       loadMedications();
@@ -206,8 +252,7 @@ window.markTaken = async function(id, name) {
 
 window.deleteMedication = async function(id, name) {
   try {
-    const res = await fetch(`/api/medications/${id}`, { method: 'DELETE' });
-    const data = await res.json();
+    const data = await fetchAPI(`/api/medications/${id}`, 'DELETE');
     if (data.success) {
       showToast('warning', 'Deleted', `${name} reminder deleted.`);
       loadMedications();
@@ -222,10 +267,8 @@ window.deleteMedication = async function(id, name) {
 
 window.viewPatientReport = async function(id, name, autoPrint = false) {
   try {
-    const appRes = await fetch('/api/appointments');
-    const apps = await appRes.json();
-    const medRes = await fetch('/api/medications');
-    const meds = await medRes.json();
+    const apps = await fetchAPI('/api/appointments');
+    const meds = await fetchAPI('/api/medications');
     
     const pRecord = window.patientsList.find(p => p.id === id);
     if (!pRecord) return;
@@ -340,14 +383,9 @@ form?.addEventListener('submit', async (e) => {
   };
   
   try {
-    const res = await fetch('/api/appointments', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const result = await res.json();
+    const result = await fetchAPI('/api/appointments', 'POST', payload);
     if (result.success) {
-      const calLink = result.calendar_link;
+      const calLink = result.calendar_link || `https://www.google.com/calendar/render?action=TEMPLATE&text=RK%20Health%20Appointment%3A%20${encodeURIComponent(payload.patientName)}&dates=&details=Doctor%3A%20${encodeURIComponent(payload.doctor)}&location=RK%20Hospital`;
       const successMsg = `Scheduled. <a href="${calLink}" target="_blank" style="color:var(--primary);text-decoration:underline;font-weight:600;"><i class="fa-solid fa-calendar-days"></i> Add to Calendar</a>`;
       showToast('success', 'Appointment Saved', successMsg);
       form.reset();
@@ -356,7 +394,7 @@ form?.addEventListener('submit', async (e) => {
       showToast('error', 'Failed', result.message || 'Could not save appointment.');
     }
   } catch (err) {
-    showToast('error', 'Error', 'Failed to communicate with Flask backend.');
+    showToast('error', 'Error', 'Failed to communicate with backend.');
   }
 });
 
@@ -386,12 +424,7 @@ async function generateAndShowSummary(patientData = null) {
   summaryBox.innerHTML = '<div style="text-align:center;padding:10px;"><i class="fa-solid fa-spinner fa-spin" style="margin-right:8px;"></i>Generating AI summary...</div>';
   
   try {
-    const res = await fetch('/api/generate-summary', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(patientData)
-    });
-    const data = await res.json();
+    const data = await fetchAPI('/api/generate-summary', 'POST', patientData);
     
     summaryBox.innerText = data.summary || "Summary generation completed.";
     
@@ -464,25 +497,16 @@ document.querySelector('#section-medications .btn-primary')?.addEventListener('c
   };
   
   try {
-    const res = await fetch('/api/medications', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json();
+    const data = await fetchAPI('/api/medications', 'POST', payload);
     if (data.success) {
       showToast('success', 'Medication Added', `${name} ${dose} saved.`);
       loadMedications();
       
       // If phone is valid and configured, send SMS reminder!
       if (phone && phone.trim().length > 5) {
-        await fetch('/api/send-sms', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            phone: phone,
-            message: `RK Health Reminder: Please take your ${name} ${dose} (${freq}) as scheduled.`
-          })
+        await fetchAPI('/api/send-sms', 'POST', {
+          phone: phone,
+          message: `RK Health Reminder: Please take your ${name} ${dose} (${freq}) as scheduled.`
         });
       }
     }
