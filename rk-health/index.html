@@ -37,13 +37,43 @@
       <span class="badge">4</span>
     </button>
     <button class="icon-btn" aria-label="Settings"><i class="fa-solid fa-gear"></i></button>
-    <div class="user-profile" tabindex="0">
-      <div class="avatar" aria-hidden="true">DR</div>
+    <div class="user-profile" id="userProfileDropdown" tabindex="0">
+      <div class="avatar" id="currentDoctorAvatar" aria-hidden="true">DR</div>
       <div class="user-meta">
-        <strong>Dr. Rohan K.</strong>
-        <span>Cardiologist</span>
+        <strong id="currentDoctorName">Dr. Rohan K.</strong>
+        <span id="currentDoctorSpecialty">Cardiologist</span>
       </div>
       <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+      <ul class="profile-dropdown" id="profileDropdownMenu">
+        <li data-doc-id="rohan" data-name="Dr. Rohan K." data-spec="Cardiologist" data-avatar="DR" class="active">
+          <div class="avatar-sm">DR</div>
+          <div>
+            <strong>Dr. Rohan K.</strong>
+            <span>Cardiologist</span>
+          </div>
+        </li>
+        <li data-doc-id="priya" data-name="Dr. Priya S." data-spec="Pediatrician" data-avatar="DP">
+          <div class="avatar-sm">DP</div>
+          <div>
+            <strong>Dr. Priya S.</strong>
+            <span>Pediatrician</span>
+          </div>
+        </li>
+        <li data-doc-id="karthik" data-name="Dr. Karthik R." data-spec="Neurologist" data-avatar="DK">
+          <div class="avatar-sm">DK</div>
+          <div>
+            <strong>Dr. Karthik R.</strong>
+            <span>Neurologist</span>
+          </div>
+        </li>
+        <li data-doc-id="anita" data-name="Dr. Anita M." data-spec="General Physician" data-avatar="DA">
+          <div class="avatar-sm">DA</div>
+          <div>
+            <strong>Dr. Anita M.</strong>
+            <span>General Physician</span>
+          </div>
+        </li>
+      </ul>
     </div>
   </div>
 </header>
@@ -83,7 +113,7 @@
     <section id="section-dashboard" class="page-section active">
       <div class="section-head">
         <div>
-          <h2>Good morning, Dr. Rohan 👋</h2>
+          <h2 id="dashboardGreeting">Good morning, Dr. Rohan 👋</h2>
           <p class="muted">Here's what's happening with your patients today.</p>
         </div>
         <button class="btn btn-primary" data-go="appointments"><i class="fa-solid fa-plus"></i> New Appointment</button>

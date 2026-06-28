@@ -528,6 +528,46 @@ patientSearch?.addEventListener('input', (e) => {
 
 /* ---------- Initial Page Load ---------- */
 document.addEventListener('DOMContentLoaded', () => {
+  /* ---------- Doctor Profile Switcher ---------- */
+  const profileDropdown = document.getElementById('userProfileDropdown');
+  const dropdownMenu = document.getElementById('profileDropdownMenu');
+  const currentAvatar = document.getElementById('currentDoctorAvatar');
+  const currentName = document.getElementById('currentDoctorName');
+  const currentSpec = document.getElementById('currentDoctorSpecialty');
+  const dashboardGreeting = document.getElementById('dashboardGreeting');
+
+  profileDropdown?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    dropdownMenu?.classList.toggle('show');
+  });
+
+  document.addEventListener('click', () => {
+    dropdownMenu?.classList.remove('show');
+  });
+
+  dropdownMenu?.querySelectorAll('li').forEach(item => {
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
+      dropdownMenu.querySelectorAll('li').forEach(li => li.classList.remove('active'));
+      item.classList.add('active');
+      
+      const docId = item.getAttribute('data-doc-id');
+      const name = item.getAttribute('data-name');
+      const spec = item.getAttribute('data-spec');
+      const avatar = item.getAttribute('data-avatar');
+      
+      if (currentAvatar) currentAvatar.textContent = avatar;
+      if (currentName) currentName.textContent = name;
+      if (currentSpec) currentSpec.textContent = spec;
+      if (dashboardGreeting) {
+        dashboardGreeting.textContent = `Good morning, Dr. ${name.split(' ')[1]} 👋`;
+      }
+      
+      showToast('success', 'Profile Switched', `Switched to ${name}'s dashboard.`);
+      dropdownMenu.classList.remove('show');
+    });
+  });
+
   loadPatients();
   loadMedications();
 
