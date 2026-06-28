@@ -3,7 +3,7 @@
    ========================================================= */
 
 // Paste your deployed Google Apps Script Web App URL here to run without the Flask server
-const APPS_SCRIPT_URL = ""; 
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyHQ2ho_4aOQlV2ZugN8thOOkEszASU_RUfehkGRHipUNG5ZZg6C26gPGNDT2ytIgLdKw/exec";
 
 async function fetchAPI(endpoint, method = 'GET', body = null) {
   if (APPS_SCRIPT_URL) {
@@ -14,7 +14,7 @@ async function fetchAPI(endpoint, method = 'GET', body = null) {
     } else {
       let action = "";
       let payload = body ? JSON.parse(JSON.stringify(body)) : {};
-      
+
       if (endpoint === '/api/appointments') {
         action = 'addAppointment';
       } else if (endpoint === '/api/medications') {
@@ -30,9 +30,9 @@ async function fetchAPI(endpoint, method = 'GET', body = null) {
       } else if (endpoint === '/api/send-sms') {
         action = 'sendSMS';
       }
-      
+
       payload.action = action;
-      
+
       const response = await fetch(APPS_SCRIPT_URL, {
         method: 'POST',
         redirect: 'follow',
@@ -94,7 +94,7 @@ const toastContainer = document.getElementById('toastContainer');
 const TOAST_ICONS = {
   success: 'fa-circle-check',
   warning: 'fa-triangle-exclamation',
-  error:   'fa-circle-xmark',
+  error: 'fa-circle-xmark',
 };
 
 function showToast(type = 'success', title = 'Notice', message = '') {
@@ -191,7 +191,7 @@ const REMINDER_CLASS = { Sent: 'chip-success', Pending: 'chip-warning', Missed: 
 const tbody = document.getElementById('patientsTbody');
 
 function avatarInitials(name) {
-  return name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
+  return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 }
 
 function renderPatients(rows) {
@@ -229,15 +229,15 @@ function renderPatients(rows) {
 
 /* ---------- Patient Action Handlers ---------- */
 
-window.editMedication = function(name, dose) {
+window.editMedication = function (name, dose) {
   showToast('warning', 'Edit Mode', `Editing ${name} ${dose} is not implemented (placeholder).`);
 };
 
-window.editPatient = function(name) {
+window.editPatient = function (name) {
   showToast('warning', 'Edit Mode', `Editing patient ${name} details is not implemented (placeholder).`);
 };
 
-window.markTaken = async function(id, name) {
+window.markTaken = async function (id, name) {
   try {
     const data = await fetchAPI(`/api/medications/${id}/taken`, 'POST');
     if (data.success) {
@@ -250,7 +250,7 @@ window.markTaken = async function(id, name) {
   }
 };
 
-window.deleteMedication = async function(id, name) {
+window.deleteMedication = async function (id, name) {
   try {
     const data = await fetchAPI(`/api/medications/${id}`, 'DELETE');
     if (data.success) {
@@ -265,17 +265,17 @@ window.deleteMedication = async function(id, name) {
 
 /* ---------- Report Generation ---------- */
 
-window.viewPatientReport = async function(id, name, autoPrint = false) {
+window.viewPatientReport = async function (id, name, autoPrint = false) {
   try {
     const apps = await fetchAPI('/api/appointments');
     const meds = await fetchAPI('/api/medications');
-    
+
     const pRecord = window.patientsList.find(p => p.id === id);
     if (!pRecord) return;
-    
+
     const pApps = apps.filter(a => a.patient_name.toLowerCase() === name.toLowerCase());
     const pMeds = meds.filter(m => m.patient_name.toLowerCase() === name.toLowerCase());
-    
+
     // 1. Details
     const detailsDiv = document.querySelector('#section-reports .report-grid > div:nth-child(1)');
     if (detailsDiv) {
@@ -286,7 +286,7 @@ window.viewPatientReport = async function(id, name, autoPrint = false) {
         <p><strong>Phone:</strong> ${pRecord.phone || '+91 98xxxxxx'}</p>
       `;
     }
-    
+
     // 2. Appointments
     const appDiv = document.querySelector('#section-reports .report-grid > div:nth-child(2)');
     if (appDiv) {
@@ -300,7 +300,7 @@ window.viewPatientReport = async function(id, name, autoPrint = false) {
       }
       appDiv.innerHTML = html;
     }
-    
+
     // 3. Medications
     const medDiv = document.querySelector('#section-reports .report-grid > div:nth-child(3)');
     if (medDiv) {
@@ -314,7 +314,7 @@ window.viewPatientReport = async function(id, name, autoPrint = false) {
       }
       medDiv.innerHTML = html;
     }
-    
+
     // 4. Compliance
     const compDiv = document.querySelector('#section-reports .report-grid > div:nth-child(4)');
     if (compDiv) {
@@ -324,13 +324,13 @@ window.viewPatientReport = async function(id, name, autoPrint = false) {
         <p class="muted">Adherence ${pRecord.compliance}% over 30 days</p>
       `;
     }
-    
+
     // 5. Notes
     const summaryP = document.querySelector('#section-reports .report-section:nth-of-type(1) p');
     if (summaryP) {
       summaryP.innerText = `Patient compliance stands at ${pRecord.compliance}%. Adherence to the medication plan is recommended to achieve optimal results.`;
     }
-    
+
     const docP = document.querySelector('#section-reports .report-section:nth-of-type(2) p');
     if (docP) {
       if (pApps.length > 0 && pApps[0].symptoms) {
@@ -339,9 +339,9 @@ window.viewPatientReport = async function(id, name, autoPrint = false) {
         docP.innerText = "No acute symptoms reported. Keep active lifestyle and follow instructions.";
       }
     }
-    
+
     goTo('reports');
-    
+
     if (autoPrint) {
       setTimeout(() => window.print(), 500);
     }
@@ -356,7 +356,7 @@ window.viewPatientReport = async function(id, name, autoPrint = false) {
 const form = document.getElementById('appointmentForm');
 form?.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const requiredFields = ['patientName','age','gender','phone','doctor','department','date','time'];
+  const requiredFields = ['patientName', 'age', 'gender', 'phone', 'doctor', 'department', 'date', 'time'];
   let ok = true;
   requiredFields.forEach(id => {
     const el = document.getElementById(id);
@@ -367,7 +367,7 @@ form?.addEventListener('submit', async (e) => {
     showToast('warning', 'Validation Error', 'Please complete all required fields.');
     return;
   }
-  
+
   const payload = {
     patientName: document.getElementById('patientName').value,
     age: document.getElementById('age').value,
@@ -381,7 +381,7 @@ form?.addEventListener('submit', async (e) => {
     priority: document.getElementById('priority').value,
     symptoms: document.getElementById('symptoms').value
   };
-  
+
   try {
     const result = await fetchAPI('/api/appointments', 'POST', payload);
     if (result.success) {
@@ -411,23 +411,23 @@ async function generateAndShowSummary(patientData = null) {
       priority: document.getElementById('priority').value || 'Normal'
     };
   }
-  
+
   openModal();
-  
+
   const summaryBox = aiModal.querySelector('.summary-box');
   const patientStrong = aiModal.querySelector('.modal-body .kv strong');
   const riskChip = aiModal.querySelector('.kv-grid .kv .chip');
   const followUpStrong = aiModal.querySelector('.kv-grid .kv:nth-child(2) strong');
   const bulletsUl = aiModal.querySelector('.bullets');
-  
+
   patientStrong.innerText = patientData.patientName;
   summaryBox.innerHTML = '<div style="text-align:center;padding:10px;"><i class="fa-solid fa-spinner fa-spin" style="margin-right:8px;"></i>Generating AI summary...</div>';
-  
+
   try {
     const data = await fetchAPI('/api/generate-summary', 'POST', patientData);
-    
+
     summaryBox.innerText = data.summary || "Summary generation completed.";
-    
+
     // Risk level styling
     const risk = data.risk_level || "Low";
     riskChip.innerText = risk;
@@ -439,9 +439,9 @@ async function generateAndShowSummary(patientData = null) {
     } else {
       riskChip.classList.add('chip-success');
     }
-    
+
     followUpStrong.innerText = data.follow_up || "4 weeks";
-    
+
     if (data.medications && data.medications.length > 0) {
       bulletsUl.innerHTML = data.medications.map(m => `<li>${m}</li>`).join('');
     } else {
@@ -487,7 +487,7 @@ document.querySelector('#section-medications .btn-primary')?.addEventListener('c
   if (!scheduleStr) return;
   const schedule = scheduleStr.split(',').map(s => s.trim());
   const phone = prompt("Enter patient phone number (optional):");
-  
+
   const payload = {
     name, dose, freq, schedule, phone,
     patientName: 'Anita Sharma',
@@ -495,13 +495,13 @@ document.querySelector('#section-medications .btn-primary')?.addEventListener('c
     compliance: 100,
     next_time: 'Tomorrow, 8:00 AM'
   };
-  
+
   try {
     const data = await fetchAPI('/api/medications', 'POST', payload);
     if (data.success) {
       showToast('success', 'Medication Added', `${name} ${dose} saved.`);
       loadMedications();
-      
+
       // If phone is valid and configured, send SMS reminder!
       if (phone && phone.trim().length > 5) {
         await fetchAPI('/api/send-sms', 'POST', {
@@ -532,7 +532,7 @@ patientSearch?.addEventListener('input', (e) => {
 document.addEventListener('DOMContentLoaded', () => {
   loadPatients();
   loadMedications();
-  
+
   // Welcome message toast
   setTimeout(() => {
     showToast('success', 'Welcome back, Dr. Rohan', 'The system is connected to Flask database & AI summary service.');
