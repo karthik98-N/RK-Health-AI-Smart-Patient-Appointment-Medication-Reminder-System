@@ -173,8 +173,8 @@ function renderMedications(meds) {
           <div class="med-title">
             <h4>${m.name} ${m.dose}</h4>
             <span>${m.freq}</span>
-            <div class="med-patient-tag" style="margin-top: 4px; font-size: 11px; color: var(--primary); font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" onclick="filterMedicationsByPatient('${m.patientName}')" title="Click to filter by this patient">
-              <i class="fa-solid fa-user"></i> ${m.patientName}
+            <div class="med-patient-tag" style="margin-top: 4px; font-size: 11px; color: var(--primary); font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" onclick="filterMedicationsByPatient('${m.patient_name || m.patientName || 'Unknown'}')" title="Click to filter by this patient">
+              <i class="fa-solid fa-user"></i> ${m.patient_name || m.patientName || 'Unknown'}
             </div>
           </div>
         </div>
@@ -201,7 +201,7 @@ function renderMedications(meds) {
 }
 
 window.filterMedicationsByPatient = function (patientName) {
-  const filtered = window.medicationsList.filter(m => m.patientName.toLowerCase() === patientName.toLowerCase());
+  const filtered = window.medicationsList.filter(m => (m.patient_name || m.patientName || '').toLowerCase() === patientName.toLowerCase());
   showToast('info', 'Medications Filtered', `Showing medications for ${patientName}.`);
   renderMedications(filtered);
 
