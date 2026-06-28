@@ -159,6 +159,12 @@ const STATUS_CLASS = { Completed: 'chip-success', Pending: 'chip-warning', Misse
 function renderMedications(meds) {
   const medGrid = document.getElementById('medGrid');
   if (!medGrid) return;
+
+  if (meds.length === 0) {
+    medGrid.innerHTML = '<p class="muted" style="grid-column:1/-1;text-align:center;padding:40px 0;">No medication logs found.</p>';
+    return;
+  }
+
   medGrid.innerHTML = meds.map(m => `
     <article class="med-card fade-in">
       <div class="med-head">
@@ -167,6 +173,9 @@ function renderMedications(meds) {
           <div class="med-title">
             <h4>${m.name} ${m.dose}</h4>
             <span>${m.freq}</span>
+            <div class="med-patient-tag" style="margin-top: 4px; font-size: 11px; color: var(--primary); font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" onclick="filterMedicationsByPatient('${m.patientName}')" title="Click to filter by this patient">
+              <i class="fa-solid fa-user"></i> ${m.patientName}
+            </div>
           </div>
         </div>
         <span class="chip ${STATUS_CLASS[m.status] || 'chip-warning'}">${m.status}</span>
@@ -190,6 +199,31 @@ function renderMedications(meds) {
     </article>
   `).join('');
 }
+
+window.filterMedicationsByPatient = function (patientName) {
+  const filtered = window.medicationsList.filter(m => m.patientName.toLowerCase() === patientName.toLowerCase());
+  showToast('info', 'Medications Filtered', `Showing medications for ${patientName}.`);
+  renderMedications(filtered);
+
+  let banner = document.getElementById('medFilterBanner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'medFilterBanner';
+    banner.style = 'grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; background: var(--primary-soft); color: var(--primary); padding: 10px 16px; border-radius: 10px; font-size: 13px; font-weight: 500; margin-bottom: 8px;';
+    const grid = document.getElementById('medGrid');
+    grid.insertBefore(banner, grid.firstChild);
+  }
+  banner.innerHTML = `
+    <span>Showing medications for <strong>${patientName}</strong></span>
+    <button class="btn btn-sm btn-primary" onclick="clearMedicationFilter()">Clear Filter</button>
+  `;
+};
+
+window.clearMedicationFilter = function () {
+  const banner = document.getElementById('medFilterBanner');
+  if (banner) banner.remove();
+  renderMedications(window.medicationsList);
+};
 
 const REMINDER_CLASS = { Sent: 'chip-success', Pending: 'chip-warning', Missed: 'chip-danger' };
 const tbody = document.getElementById('patientsTbody');
