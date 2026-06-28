@@ -2,10 +2,9 @@
    RK Health – Backend-Integrated UI Actions
    ========================================================= */
 
-// APPS_SCRIPT_URL is loaded globally from config.js
-
+// APPS_SCRIPT_URL is loaded globally from config.js. When running on localhost, we default to the local Flask API.
 async function fetchAPI(endpoint, method = 'GET', body = null) {
-  if (APPS_SCRIPT_URL) {
+  if (APPS_SCRIPT_URL && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
     if (method === 'GET') {
       const action = endpoint.split('/').pop(); // 'patients', 'medications', or 'appointments'
       const response = await fetch(`${APPS_SCRIPT_URL}?action=${action}`);
