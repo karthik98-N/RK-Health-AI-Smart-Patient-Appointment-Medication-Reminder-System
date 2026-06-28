@@ -2,8 +2,7 @@
    RK Health – Backend-Integrated UI Actions
    ========================================================= */
 
-// Paste your deployed Google Apps Script Web App URL here to run without the Flask server
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyHQ2ho_4aOQlV2ZugN8thOOkEszASU_RUfehkGRHipUNG5ZZg6C26gPGNDT2ytIgLdKw/exec";
+// APPS_SCRIPT_URL is loaded globally from config.js
 
 async function fetchAPI(endpoint, method = 'GET', body = null) {
   if (APPS_SCRIPT_URL) {
