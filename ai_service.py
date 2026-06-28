@@ -71,7 +71,7 @@ def generate_medical_summary(patient_name, doctor_notes, medications_info):
     """
     
     try:
-        logger.info("API CALL: Dispatching request to Groq LLM API (model: llama3-8b-8192)...")
+        logger.info("API CALL: Dispatching request to Groq LLM API (model: llama-3.3-70b-versatile)...")
         completion = client.chat.completions.create(
             messages=[
                 {
@@ -83,7 +83,9 @@ def generate_medical_summary(patient_name, doctor_notes, medications_info):
                     "content": prompt
                 }
             ],
-            model="llama3-8b-8192",
+            model="llama-3.3-70b-versatile",
+            temperature=0.8,
+            max_tokens=2048,
             response_format={"type": "json_object"}
         )
         
