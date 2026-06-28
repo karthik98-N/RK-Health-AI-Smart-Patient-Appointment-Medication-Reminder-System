@@ -56,6 +56,10 @@ function doPost(e) {
       return responseSuccess(medicationTaken(data.id));
     } else if (action === "deleteMedication") {
       return responseSuccess(deleteMedication(data.id));
+    } else if (action === "updatePatient") {
+      return responseSuccess(updatePatient(data.id, data));
+    } else if (action === "updateMedication") {
+      return responseSuccess(updateMedication(data.id, data));
     } else {
       return responseError("Invalid POST action requested.");
     }
@@ -194,6 +198,42 @@ function deleteMedication(medId) {
     }
   }
   return { success: true, message: "Medication deleted." };
+}
+
+/**
+ * Updates a medication's name, dose, frequency, and compliance.
+ */
+function updateMedication(medId, data) {
+  const sheet = getSheet("medications");
+  const values = sheet.getDataRange().getValues();
+  for (let i = 1; i < values.length; i++) {
+    if (values[i][0].toString() === medId.toString()) {
+      sheet.getRange(i + 1, 3).setValue(data.name);
+      sheet.getRange(i + 1, 4).setValue(data.dose);
+      sheet.getRange(i + 1, 5).setValue(data.freq);
+      sheet.getRange(i + 1, 8).setValue(data.compliance);
+      break;
+    }
+  }
+  return { success: true, message: "Medication updated." };
+}
+
+/**
+ * Updates a patient's demographics and compliance score.
+ */
+function updatePatient(patientId, data) {
+  const sheet = getSheet("patients");
+  const values = sheet.getDataRange().getValues();
+  for (let i = 1; i < values.length; i++) {
+    if (values[i][0].toString() === patientId.toString()) {
+      sheet.getRange(i + 1, 3).setValue(data.phone);
+      sheet.getRange(i + 1, 4).setValue(data.age);
+      sheet.getRange(i + 1, 5).setValue(data.gender);
+      sheet.getRange(i + 1, 6).setValue(data.compliance);
+      break;
+    }
+  }
+  return { success: true, message: "Patient updated." };
 }
 
 /**

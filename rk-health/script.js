@@ -23,10 +23,16 @@ async function fetchAPI(endpoint, method = 'GET', body = null) {
       } else if (method === 'DELETE' && endpoint.startsWith('/api/medications/')) {
         action = 'deleteMedication';
         payload.id = endpoint.split('/').pop();
+      } else if (method === 'POST' && endpoint.startsWith('/api/medications/') && !endpoint.includes('/taken')) {
+        action = 'updateMedication';
+        payload.id = endpoint.split('/').pop();
       } else if (endpoint === '/api/generate-summary') {
         action = 'generateSummary';
       } else if (endpoint === '/api/send-sms') {
         action = 'sendSMS';
+      } else if (endpoint.startsWith('/api/patients/')) {
+        action = 'updatePatient';
+        payload.id = endpoint.split('/').pop();
       }
 
       payload.action = action;
@@ -177,7 +183,7 @@ function renderMedications(meds) {
       </div>
       <div class="med-next"><i class="fa-regular fa-clock"></i> Next: ${m.next}</div>
       <div class="med-actions">
-        <button class="btn btn-outline" onclick="editMedication('${m.name}', '${m.dose}')"><i class="fa-solid fa-pen"></i> Edit</button>
+        <button class="btn btn-outline" onclick="editMedication(${m.id}, '${m.name}', '${m.dose}')"><i class="fa-solid fa-pen"></i> Edit</button>
         <button class="btn btn-outline" onclick="markTaken(${m.id}, '${m.name} ${m.dose}')"><i class="fa-solid fa-check"></i> Taken</button>
         <button class="btn btn-outline" onclick="deleteMedication(${m.id}, '${m.name}')" style="color:var(--danger)"><i class="fa-solid fa-trash"></i></button>
       </div>
@@ -216,7 +222,7 @@ function renderPatients(rows) {
       <td>
         <div class="row-actions">
           <button class="icon-btn" title="View Report" onclick="viewPatientReport('${p.id}', '${p.name}')"><i class="fa-regular fa-eye"></i></button>
-          <button class="icon-btn" title="Edit Patient" onclick="editPatient('${p.name}')"><i class="fa-solid fa-pen"></i></button>
+          <button class="icon-btn" title="Edit Patient" onclick="editPatient('${p.id}', '${p.name}')"><i class="fa-solid fa-pen"></i></button>
           <button class="icon-btn" title="Print" onclick="viewPatientReport('${p.id}', '${p.name}', true)"><i class="fa-solid fa-print"></i></button>
           <button class="icon-btn" title="Delete Patient" onclick="showToast('warning','Deleted','Patient ${p.name} removed')"><i class="fa-solid fa-trash"></i></button>
         </div>
@@ -227,12 +233,75 @@ function renderPatients(rows) {
 
 /* ---------- Patient Action Handlers ---------- */
 
-window.editMedication = function (name, dose) {
-  showToast('warning', 'Edit Mode', `Editing ${name} ${dose} is not implemented (placeholder).`);
+window.editMedication = async function (id, name, dose) {
+  const newName = prompt("Edit medicine name:", name);
+  if (newName === null) return;
+
+  const newDose = prompt("Edit dosage (e.g., 10mg):", dose);
+  if (newDose === null) return;
+
+  const freq = prompt("Edit frequency (e.g., Once daily):");
+  if (freq === null) return;
+
+  const complianceStr = prompt("Edit compliance score (0-100):", "100");
+  if (complianceStr === null) return;
+  const compliance = parseInt(complianceStr, 10);
+  if (isNaN(compliance) || compliance < 0 || compliance > 100) {
+    showToast('error', 'Error', 'Compliance must be a number between 0 and 100.');
+    return;
+  }
+
+  const payload = { name: newName, dose: newDose, freq, compliance };
+
+  try {
+    const data = await fetchAPI(`/api/medications/${id}`, 'POST', payload);
+    if (data.success) {
+      showToast('success', 'Medication Updated', `${newName} details saved.`);
+      loadMedications();
+      loadPatients();
+    }
+  } catch (err) {
+    showToast('error', 'Error', 'Failed to update medication details.');
+  }
 };
 
-window.editPatient = function (name) {
-  showToast('warning', 'Edit Mode', `Editing patient ${name} details is not implemented (placeholder).`);
+window.editPatient = async function (id, name) {
+  const patient = window.patientsList.find(p => p.id === id);
+  if (!patient) return;
+
+  const phone = prompt(`Edit phone number for ${name}:`, patient.phone || '');
+  if (phone === null) return;
+
+  const ageStr = prompt(`Edit age for ${name}:`, patient.age || '');
+  if (ageStr === null) return;
+  const age = parseInt(ageStr, 10);
+  if (isNaN(age)) {
+    showToast('error', 'Error', 'Age must be a valid number.');
+    return;
+  }
+
+  const gender = prompt(`Edit gender for ${name} (Male/Female/Other):`, patient.gender || '');
+  if (gender === null) return;
+
+  const complianceStr = prompt(`Edit compliance score for ${name} (0-100):`, patient.compliance || '87');
+  if (complianceStr === null) return;
+  const compliance = parseInt(complianceStr, 10);
+  if (isNaN(compliance) || compliance < 0 || compliance > 100) {
+    showToast('error', 'Error', 'Compliance must be a number between 0 and 100.');
+    return;
+  }
+
+  const payload = { phone, age, gender, compliance };
+
+  try {
+    const data = await fetchAPI(`/api/patients/${id}`, 'POST', payload);
+    if (data.success) {
+      showToast('success', 'Patient Updated', `${name}'s details saved.`);
+      loadPatients();
+    }
+  } catch (err) {
+    showToast('error', 'Error', 'Failed to update patient details.');
+  }
 };
 
 window.markTaken = async function (id, name) {

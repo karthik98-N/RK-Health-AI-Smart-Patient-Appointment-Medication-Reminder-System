@@ -193,6 +193,26 @@ def get_patients():
         })
     return jsonify(patients_list)
 
+@app.route('/api/patients/<id>', methods=['POST'])
+def update_patient(id):
+    """Update patient details."""
+    data = request.json
+    phone = data.get('phone')
+    age = int(data.get('age', 0))
+    gender = data.get('gender')
+    compliance = int(data.get('compliance', 87))
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE patients SET phone = ?, age = ?, gender = ?, compliance = ? WHERE id = ?",
+        (phone, age, gender, compliance, id)
+    )
+    conn.commit()
+    conn.close()
+
+    return jsonify({"success": True, "message": "Patient updated successfully."})
+
 @app.route('/api/appointments', methods=['GET', 'POST'])
 def manage_appointments():
     conn = get_db_connection()
@@ -325,6 +345,26 @@ def delete_medication(med_id):
     conn.commit()
     conn.close()
     return jsonify({'success': True, 'message': 'Medication deleted.'})
+
+@app.route('/api/medications/<int:med_id>', methods=['POST'])
+def update_medication(med_id):
+    """Update medication details."""
+    data = request.json
+    name = data.get('name')
+    dose = data.get('dose')
+    freq = data.get('freq')
+    compliance = int(data.get('compliance', 100))
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE medications SET name = ?, dose = ?, freq = ?, compliance = ? WHERE id = ?",
+        (name, dose, freq, compliance, med_id)
+    )
+    conn.commit()
+    conn.close()
+
+    return jsonify({"success": True, "message": "Medication updated successfully."})
 
 @app.route('/api/medications/<int:med_id>/taken', methods=['POST'])
 def medication_taken(med_id):
