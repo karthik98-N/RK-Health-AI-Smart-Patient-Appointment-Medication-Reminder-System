@@ -5,8 +5,8 @@ from datetime import datetime, timedelta
 from urllib.parse import quote
 from flask import Flask, request, jsonify, render_template, send_from_directory
 from dotenv import load_dotenv
-from groq import Groq
 from twilio.rest import Client as TwilioClient
+from ai_service import generate_medical_summary
 
 # Load environment variables
 load_dotenv()
@@ -345,8 +345,8 @@ def medication_taken(med_id):
 
 @app.route('/api/generate-summary', methods=['POST'])
 def generate_ai_summary():
-    """Generate patient-friendly visit summary using Groq API."""
-    data = request.json
+    """Generate patient-friendly visit summary using Groq API via ai_service."""
+    data = request.json or {}
     patient_name = data.get('patientName', 'Anita Sharma')
     doctor = data.get('doctor', 'Dr. Rohan K.')
     department = data.get('department', 'Cardiology')
@@ -354,64 +354,21 @@ def generate_ai_summary():
     visit_type = data.get('visit', 'Follow-up')
     priority = data.get('priority', 'Normal')
     
-    groq_api_key = os.getenv("GROQ_API_KEY")
-    if not groq_api_key:
-        # Fallback / Mock response if Groq API Key is not set
-        return jsonify({
-            'summary': f"Patient {patient_name} visited {doctor} ({department}) for a {visit_type} appointment. The patient presented with symptoms of: {symptoms}. Vital signs are stable, but regular tracking of symptoms is recommended.",
-            'risk_level': 'Moderate' if priority == 'High' or 'chest' in symptoms.lower() else 'Low',
-            'follow_up': '4 weeks',
-            'medications': [
-                "Continue existing prescribed medication strictly.",
-                "Take plenty of rest and monitor symptoms.",
-                "Check blood pressure daily."
-            ]
-        })
-        
+    doctor_notes = f"Department: {department}. Doctor: {doctor}. Visit Type: {visit_type}. Symptoms: {symptoms}."
+    medications_info = "Atorvastatin 10mg, Metoprolol 25mg"
+    
     try:
-        client = Groq(api_key=groq_api_key)
-        prompt = f"""
-        Generate a patient-friendly medical summary for the following hospital visit:
-        Patient: {patient_name}
-        Doctor: {doctor} ({department})
-        Visit Type: {visit_type}
-        Priority: {priority}
-        Symptoms reported: {symptoms}
+        result = generate_medical_summary(patient_name, doctor_notes, medications_info)
         
-        Respond ONLY with a valid JSON object matching this structure:
-        {{
-            "summary": "A friendly, easy-to-understand 2-3 sentence overview of the visit.",
-            "risk_level": "Low" or "Moderate" or "High",
-            "follow_up": "Suggested follow-up timeline (e.g., '2 weeks' or '4 weeks')",
-            "medications": [
-                "Practical advice 1",
-                "Practical advice 2 or specific medication dosage reminders"
-            ]
-        }}
-        """
-        
-        chat_completion = client.chat.completions.create(
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a professional, caring medical AI assistant. You generate clean, structured JSON health summaries for patients."
-                },
-                {
-                    "role": "user",
-                    "content": prompt,
-                }
-            ],
-            model="llama3-8b-8192",
-            response_format={"type": "json_object"}
-        )
-        
-        # Parse and return JSON response
-        import json
-        result = json.loads(chat_completion.choices[0].message.content)
-        return jsonify(result)
-        
+        # Map output to what the frontend expects:
+        # summary, risk_level, follow_up, medications
+        return jsonify({
+            'summary': result.get('visit_overview', '') + "\n" + result.get('diagnosis_explanation', ''),
+            'risk_level': result.get('risk_level', 'Moderate' if priority == 'High' or 'chest' in symptoms.lower() else 'Low'),
+            'follow_up': result.get('follow_up_advice', '4 weeks'),
+            'medications': [result.get('medication_instructions', 'Follow doctor guidelines.')]
+        })
     except Exception as e:
-        print("Groq API error:", e)
         return jsonify({
             'error': True,
             'message': str(e),
@@ -419,6 +376,29 @@ def generate_ai_summary():
             'risk_level': 'Moderate',
             'follow_up': '2 weeks',
             'medications': ["Follow doctor instructions."]
+        }), 500
+
+@app.route('/generate-summary', methods=['POST'])
+def generate_summary_test_route():
+    """Test route satisfying project requirements. Expects patient_name, doctor_notes, medications."""
+    data = request.json or {}
+    patient_name = data.get('patient_name')
+    doctor_notes = data.get('doctor_notes')
+    medications = data.get('medications', '')
+    
+    if not patient_name or not doctor_notes:
+        return jsonify({
+            'error': True,
+            'message': 'patient_name and doctor_notes are required fields.'
+        }), 400
+        
+    try:
+        result = generate_medical_summary(patient_name, doctor_notes, medications)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({
+            'error': True,
+            'message': str(e)
         }), 500
 
 @app.route('/api/send-sms', methods=['POST'])
