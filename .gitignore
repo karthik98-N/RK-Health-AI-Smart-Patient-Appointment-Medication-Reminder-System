@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+ENV/
+
+# Database
+*.db
+*.sqlite3
+
+# Environment keys
+.env
+
+# OS/IDE
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini

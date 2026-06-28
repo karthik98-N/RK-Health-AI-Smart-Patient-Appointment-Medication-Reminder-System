@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RK Health – AI Smart Patient Appointment & Medication Reminder System</title>
+<meta name="description" content="Modern healthcare dashboard for AI-powered patient appointments and medication reminders." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+
+<!-- ============= HEADER ============= -->
+<header class="app-header" role="banner">
+  <div class="header-left">
+    <button id="menuToggle" class="icon-btn mobile-only" aria-label="Open menu"><i class="fa-solid fa-bars"></i></button>
+    <div class="brand">
+      <div class="brand-logo" aria-hidden="true"><i class="fa-solid fa-heart-pulse"></i></div>
+      <div class="brand-text">
+        <h1>RK Health</h1>
+        <span>AI Smart Patient & Medication System</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="header-search" role="search">
+    <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+    <input type="search" placeholder="Search patients, appointments, medications..." aria-label="Search" />
+  </div>
+
+  <div class="header-right">
+    <button class="icon-btn has-badge" aria-label="Notifications">
+      <i class="fa-regular fa-bell"></i>
+      <span class="badge">4</span>
+    </button>
+    <button class="icon-btn" aria-label="Settings"><i class="fa-solid fa-gear"></i></button>
+    <div class="user-profile" tabindex="0">
+      <div class="avatar" aria-hidden="true">DR</div>
+      <div class="user-meta">
+        <strong>Dr. Rohan K.</strong>
+        <span>Cardiologist</span>
+      </div>
+      <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+    </div>
+  </div>
+</header>
+
+<!-- ============= LAYOUT ============= -->
+<div class="layout">
+
+  <!-- ============= SIDEBAR ============= -->
+  <aside class="sidebar" id="sidebar" aria-label="Primary">
+    <nav>
+      <ul>
+        <li><a href="#" class="nav-link active" data-section="dashboard"><i class="fa-solid fa-house"></i><span>Dashboard</span></a></li>
+        <li><a href="#" class="nav-link" data-section="appointments"><i class="fa-regular fa-calendar-plus"></i><span>Appointments</span></a></li>
+        <li><a href="#" class="nav-link" data-section="medications"><i class="fa-solid fa-pills"></i><span>Medications</span></a></li>
+        <li><a href="#" class="nav-link" data-section="patients"><i class="fa-solid fa-user-doctor"></i><span>Patients</span></a></li>
+        <li><a href="#" class="nav-link" data-section="reports"><i class="fa-regular fa-file-lines"></i><span>Reports</span></a></li>
+        <li><a href="#" class="nav-link" data-section="ai"><i class="fa-solid fa-robot"></i><span>AI Summary</span></a></li>
+        <li><a href="#" class="nav-link" data-section="notifications"><i class="fa-regular fa-bell"></i><span>Notifications</span></a></li>
+        <li><a href="#" class="nav-link" data-section="settings"><i class="fa-solid fa-gear"></i><span>Settings</span></a></li>
+      </ul>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="upgrade-card">
+        <i class="fa-solid fa-shield-heart"></i>
+        <h4>Pro Care+</h4>
+        <p>Unlock AI-driven insights for all patients.</p>
+        <button class="btn btn-primary btn-sm">Upgrade</button>
+      </div>
+    </div>
+  </aside>
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <!-- ============= MAIN ============= -->
+  <main class="main-content">
+
+    <!-- ===== DASHBOARD ===== -->
+    <section id="section-dashboard" class="page-section active">
+      <div class="section-head">
+        <div>
+          <h2>Good morning, Dr. Rohan 👋</h2>
+          <p class="muted">Here's what's happening with your patients today.</p>
+        </div>
+        <button class="btn btn-primary" data-go="appointments"><i class="fa-solid fa-plus"></i> New Appointment</button>
+      </div>
+
+      <div class="stats-grid">
+        <article class="stat-card fade-in">
+          <div class="stat-icon icon-blue"><i class="fa-solid fa-users"></i></div>
+          <div class="stat-body">
+            <span class="stat-label">Total Patients</span>
+            <strong class="stat-value">1,284</strong>
+            <span class="trend up"><i class="fa-solid fa-arrow-up"></i> 8.2% this month</span>
+          </div>
+        </article>
+
+        <article class="stat-card fade-in">
+          <div class="stat-icon icon-green"><i class="fa-regular fa-calendar-check"></i></div>
+          <div class="stat-body">
+            <span class="stat-label">Today's Appointments</span>
+            <strong class="stat-value">36</strong>
+            <span class="trend up"><i class="fa-solid fa-arrow-up"></i> 12 upcoming</span>
+          </div>
+        </article>
+
+        <article class="stat-card fade-in">
+          <div class="stat-icon icon-orange"><i class="fa-solid fa-capsules"></i></div>
+          <div class="stat-body">
+            <span class="stat-label">Medication Reminders</span>
+            <strong class="stat-value">18</strong>
+            <span class="trend down"><i class="fa-solid fa-clock"></i> 5 pending</span>
+          </div>
+        </article>
+
+        <article class="stat-card fade-in">
+          <div class="stat-icon icon-red"><i class="fa-solid fa-heart"></i></div>
+          <div class="stat-body">
+            <span class="stat-label">Compliance Rate</span>
+            <div class="compliance">
+              <div class="circle-progress" style="--p:87">
+                <span>87%</span>
+              </div>
+              <span class="trend up"><i class="fa-solid fa-arrow-up"></i> 3.4%</span>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <div class="dashboard-grid">
+        <article class="card ai-insights fade-in">
+          <header class="card-head">
+            <div class="card-title"><i class="fa-solid fa-robot icon-blue-soft"></i><h3>AI Health Insights</h3></div>
+            <button class="btn btn-outline btn-sm" id="openAiModal"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate</button>
+          </header>
+          <div class="ai-content">
+            <p class="ai-summary">
+              Across your active patients this week, <strong>87%</strong> are on track with medication schedules.
+              <strong>3 patients</strong> show declining compliance and may benefit from a follow-up call.
+              Cardiology patients show the highest adherence (94%).
+            </p>
+            <div class="ai-chips">
+              <span class="chip chip-success"><i class="fa-solid fa-check"></i> 12 on schedule</span>
+              <span class="chip chip-warning"><i class="fa-solid fa-triangle-exclamation"></i> 3 at risk</span>
+              <span class="chip chip-info"><i class="fa-solid fa-clock"></i> 5 pending review</span>
+            </div>
+          </div>
+        </article>
+
+        <article class="card activity-card fade-in">
+          <header class="card-head">
+            <div class="card-title"><i class="fa-solid fa-clock-rotate-left icon-blue-soft"></i><h3>Recent Activity</h3></div>
+            <button class="btn-ghost">View all</button>
+          </header>
+          <ul class="timeline">
+            <li>
+              <span class="dot dot-blue"></span>
+              <div>
+                <strong>Appointment booked</strong>
+                <p class="muted">Anita Sharma — Cardiology consult, 10:30 AM</p>
+              </div>
+              <time>2m ago</time>
+            </li>
+            <li>
+              <span class="dot dot-green"></span>
+              <div>
+                <strong>Medication reminder sent</strong>
+                <p class="muted">Metformin 500mg — Ramesh Patel</p>
+              </div>
+              <time>14m ago</time>
+            </li>
+            <li>
+              <span class="dot dot-orange"></span>
+              <div>
+                <strong>Health report generated</strong>
+                <p class="muted">Monthly summary — Priya Verma</p>
+              </div>
+              <time>1h ago</time>
+            </li>
+            <li>
+              <span class="dot dot-red"></span>
+              <div>
+                <strong>SMS delivered</strong>
+                <p class="muted">Follow-up reminder — 22 patients</p>
+              </div>
+              <time>3h ago</time>
+            </li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <!-- ===== APPOINTMENTS ===== -->
+    <section id="section-appointments" class="page-section">
+      <div class="section-head">
+        <div>
+          <h2>Add Appointment</h2>
+          <p class="muted">Schedule a new patient appointment.</p>
+        </div>
+      </div>
+
+      <article class="card form-card fade-in">
+        <form id="appointmentForm" class="form-grid" novalidate>
+          <div class="field">
+            <label for="patientName">Patient Name</label>
+            <input id="patientName" type="text" required placeholder="e.g. Anita Sharma" />
+            <small class="error-text" hidden>Please enter the patient name.</small>
+          </div>
+          <div class="field">
+            <label for="age">Age</label>
+            <input id="age" type="number" min="0" max="120" required placeholder="e.g. 42" />
+          </div>
+          <div class="field">
+            <label for="gender">Gender</label>
+            <select id="gender" required>
+              <option value="">Select</option>
+              <option>Female</option><option>Male</option><option>Other</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="phone">Phone Number</label>
+            <input id="phone" type="tel" required placeholder="+91 98xxxxxx" />
+          </div>
+          <div class="field">
+            <label for="doctor">Doctor Name</label>
+            <input id="doctor" type="text" required placeholder="Dr. Rohan K." />
+          </div>
+          <div class="field">
+            <label for="department">Department</label>
+            <select id="department" required>
+              <option value="">Select department</option>
+              <option>Cardiology</option><option>Neurology</option><option>Pediatrics</option>
+              <option>Orthopedics</option><option>General Medicine</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="date">Appointment Date</label>
+            <input id="date" type="date" required />
+          </div>
+          <div class="field">
+            <label for="time">Appointment Time</label>
+            <input id="time" type="time" required />
+          </div>
+          <div class="field">
+            <label for="visit">Visit Type</label>
+            <select id="visit">
+              <option>First Visit</option><option>Follow-up</option><option>Emergency</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="priority">Priority</label>
+            <select id="priority">
+              <option>Normal</option><option>High</option><option>Urgent</option>
+            </select>
+          </div>
+          <div class="field field-full">
+            <label for="symptoms">Symptoms</label>
+            <textarea id="symptoms" rows="3" placeholder="Briefly describe the symptoms..."></textarea>
+          </div>
+
+          <div class="form-actions field-full">
+            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Appointment</button>
+            <button type="reset" class="btn btn-outline"><i class="fa-solid fa-rotate-left"></i> Reset</button>
+            <button type="button" class="btn btn-secondary" id="genSummaryBtn"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate AI Summary</button>
+          </div>
+        </form>
+      </article>
+    </section>
+
+    <!-- ===== MEDICATIONS ===== -->
+    <section id="section-medications" class="page-section">
+      <div class="section-head">
+        <div>
+          <h2>Medication Management</h2>
+          <p class="muted">Track adherence and reminders.</p>
+        </div>
+        <button class="btn btn-primary"><i class="fa-solid fa-plus"></i> Add Medication</button>
+      </div>
+
+      <div class="med-grid" id="medGrid"></div>
+    </section>
+
+    <!-- ===== PATIENTS LOGS ===== -->
+    <section id="section-patients" class="page-section">
+      <div class="section-head">
+        <div>
+          <h2>Patient Logs</h2>
+          <p class="muted">Search and manage patient records.</p>
+        </div>
+        <div class="table-search">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="search" id="patientSearch" placeholder="Search patients..." />
+        </div>
+      </div>
+
+      <article class="card table-card fade-in">
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Patient ID</th><th>Patient Name</th><th>Appointment</th>
+                <th>Doctor</th><th>Medication</th><th>Reminder</th>
+                <th>Compliance</th><th class="text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="patientsTbody"></tbody>
+          </table>
+        </div>
+        <div class="pagination">
+          <button class="btn-ghost"><i class="fa-solid fa-angle-left"></i></button>
+          <button class="page active">1</button>
+          <button class="page">2</button>
+          <button class="page">3</button>
+          <span>…</span>
+          <button class="page">12</button>
+          <button class="btn-ghost"><i class="fa-solid fa-angle-right"></i></button>
+        </div>
+      </article>
+    </section>
+
+    <!-- ===== REPORTS ===== -->
+    <section id="section-reports" class="page-section">
+      <div class="section-head">
+        <div>
+          <h2>Health Reports</h2>
+          <p class="muted">Professional printable patient report.</p>
+        </div>
+        <div class="actions-inline">
+          <button class="btn btn-outline"><i class="fa-solid fa-print"></i> Print</button>
+          <button class="btn btn-primary"><i class="fa-solid fa-download"></i> Download PDF</button>
+        </div>
+      </div>
+
+      <article class="card report fade-in">
+        <header class="report-head">
+          <div>
+            <h3>Patient Health Report</h3>
+            <p class="muted">Generated on June 28, 2026</p>
+          </div>
+          <div class="report-brand">
+            <i class="fa-solid fa-heart-pulse"></i>
+            <span>RK Health</span>
+          </div>
+        </header>
+
+        <div class="report-grid">
+          <div>
+            <h4>Patient Details</h4>
+            <p><strong>Name:</strong> Anita Sharma</p>
+            <p><strong>Age / Gender:</strong> 42 / Female</p>
+            <p><strong>Patient ID:</strong> RK-0921</p>
+            <p><strong>Phone:</strong> +91 98xxxxxx21</p>
+          </div>
+          <div>
+            <h4>Appointment History</h4>
+            <p>Jun 12, 2026 — Cardiology follow-up</p>
+            <p>May 04, 2026 — ECG review</p>
+            <p>Apr 18, 2026 — Initial consult</p>
+          </div>
+          <div>
+            <h4>Medication Schedule</h4>
+            <p>Atorvastatin 10mg — Night</p>
+            <p>Metoprolol 25mg — Morning</p>
+            <p>Aspirin 75mg — Morning</p>
+          </div>
+          <div>
+            <h4>Compliance Statistics</h4>
+            <div class="bar"><div class="bar-fill" style="width:87%"></div></div>
+            <p class="muted">Adherence 87% over 30 days</p>
+          </div>
+        </div>
+
+        <div class="report-row">
+          <div class="chart-placeholder">
+            <i class="fa-solid fa-chart-line"></i>
+            <span>Heart Rate Trend</span>
+          </div>
+          <div class="chart-placeholder">
+            <i class="fa-solid fa-chart-column"></i>
+            <span>Medication Adherence</span>
+          </div>
+        </div>
+
+        <div class="report-section">
+          <h4>AI Summary</h4>
+          <p>Patient shows steady improvement with consistent adherence. Suggest continuing current dosage and a follow-up ECG in 4 weeks.</p>
+        </div>
+        <div class="report-section">
+          <h4>Doctor Notes</h4>
+          <p>BP stable at 128/82. Encourage daily 20-min walk. Review lipid panel at next visit.</p>
+        </div>
+      </article>
+    </section>
+
+    <!-- ===== NOTIFICATIONS ===== -->
+    <section id="section-notifications" class="page-section">
+      <div class="section-head">
+        <div>
+          <h2>Notifications</h2>
+          <p class="muted">Trigger sample notifications.</p>
+        </div>
+      </div>
+      <article class="card fade-in pad">
+        <div class="actions-inline wrap">
+          <button class="btn btn-primary" onclick="showToast('success','Appointment Saved','Anita Sharma at 10:30 AM')"><i class="fa-solid fa-check"></i> Success</button>
+          <button class="btn btn-secondary" onclick="showToast('warning','Missed Medication','Aspirin 75mg — Ramesh')"><i class="fa-solid fa-triangle-exclamation"></i> Warning</button>
+          <button class="btn btn-danger" onclick="showToast('error','Server Error','Reminder failed to send')"><i class="fa-solid fa-circle-xmark"></i> Error</button>
+        </div>
+      </article>
+    </section>
+
+    <!-- ===== AI ===== -->
+    <section id="section-ai" class="page-section">
+      <div class="section-head"><div><h2>AI Summary</h2><p class="muted">Generate insights for a patient.</p></div></div>
+      <article class="card pad fade-in">
+        <button class="btn btn-primary" id="openAiModal2"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate AI Summary</button>
+      </article>
+    </section>
+
+    <!-- ===== SETTINGS ===== -->
+    <section id="section-settings" class="page-section">
+      <div class="section-head"><div><h2>Settings</h2><p class="muted">Manage your preferences.</p></div></div>
+      <article class="card pad fade-in"><p class="muted">Settings UI placeholder.</p></article>
+    </section>
+
+  </main>
+</div>
+
+<!-- ============= MODAL ============= -->
+<div class="modal-container" id="aiModal" aria-hidden="true">
+  <div class="modal-backdrop" data-close></div>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="aiModalTitle">
+    <header class="modal-head">
+      <div class="card-title"><i class="fa-solid fa-robot icon-blue-soft"></i><h3 id="aiModalTitle">AI Health Summary</h3></div>
+      <button class="icon-btn" data-close aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+    </header>
+    <div class="modal-body">
+      <div class="kv"><span>Patient</span><strong>Anita Sharma</strong></div>
+      <div class="summary-box">
+        Patient is responding well to current cardiac therapy with 87% medication adherence
+        over the last 30 days. BP and heart rate within target ranges. No adverse symptoms reported.
+      </div>
+      <div class="kv-grid">
+        <div class="kv"><span>Risk Level</span><span class="chip chip-warning">Moderate</span></div>
+        <div class="kv"><span>Follow-up</span><strong>4 weeks</strong></div>
+      </div>
+      <div>
+        <h4 class="mt">Medication Suggestions</h4>
+        <ul class="bullets">
+          <li>Continue Atorvastatin 10mg at night</li>
+          <li>Maintain Metoprolol 25mg morning</li>
+          <li>Recheck lipid panel at next visit</li>
+        </ul>
+      </div>
+    </div>
+    <footer class="modal-foot">
+      <button class="btn btn-outline"><i class="fa-regular fa-copy"></i> Copy</button>
+      <button class="btn btn-secondary"><i class="fa-solid fa-download"></i> Download</button>
+      <button class="btn btn-primary" data-close>Close</button>
+    </footer>
+  </div>
+</div>
+
+<!-- ============= TOASTS ============= -->
+<div class="toast-container" id="toastContainer" aria-live="polite" aria-atomic="true"></div>
+
+<script src="./script.js"></script>
+</body>
+</html>
