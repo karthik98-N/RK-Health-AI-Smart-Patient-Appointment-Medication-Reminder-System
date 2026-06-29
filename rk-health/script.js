@@ -860,6 +860,7 @@ document.addEventListener('DOMContentLoaded', () => {
       generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
       otpPhone = phoneValue;
       otpPatient = patient;
+      console.log(`[TESTING ONLY] Generated OTP code for ${patient.name} (${phoneValue}): ${generatedOtp}`);
 
       showToast('info', 'Sending OTP', `Requesting OTP SMS to ${phoneValue}...`);
       
