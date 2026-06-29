@@ -502,6 +502,7 @@ form?.addEventListener('submit', async (e) => {
     age: document.getElementById('age').value,
     gender: document.getElementById('gender').value,
     phone: document.getElementById('phone').value,
+    email: localStorage.getItem('patientEmail') || '',
     doctor: document.getElementById('doctor').value,
     department: document.getElementById('department').value,
     date: document.getElementById('date').value,
@@ -514,10 +515,14 @@ form?.addEventListener('submit', async (e) => {
   try {
     const result = await fetchAPI('/api/appointments', 'POST', payload);
     if (result.success) {
+      if (payload.phone) {
+        localStorage.setItem('patientPhone', payload.phone);
+      }
       const calLink = result.calendar_link || `https://www.google.com/calendar/render?action=TEMPLATE&text=RK%20Health%20Appointment%3A%20${encodeURIComponent(payload.patientName)}&dates=&details=Doctor%3A%20${encodeURIComponent(payload.doctor)}&location=RK%20Hospital`;
       const successMsg = `Scheduled. <a href="${calLink}" target="_blank" style="color:var(--primary);text-decoration:underline;font-weight:600;"><i class="fa-solid fa-calendar-days"></i> Add to Calendar</a>`;
       showToast('success', 'Appointment Saved', successMsg);
       form.reset();
+      checkPatientLogin();
       loadPatients();
     } else {
       showToast('error', 'Failed', result.message || 'Could not save appointment.');
@@ -846,13 +851,21 @@ async function checkPatientLogin() {
       formPatientName.setAttribute('readonly', 'readonly');
     }
     if (formPhone) {
-      formPhone.value = localStorage.getItem('patientPhone') || 'N/A';
-      formPhone.setAttribute('readonly', 'readonly');
+      const loggedPhone = localStorage.getItem('patientPhone');
+      if (loggedPhone && loggedPhone !== 'N/A' && loggedPhone !== 'null') {
+        formPhone.value = loggedPhone;
+        formPhone.setAttribute('readonly', 'readonly');
+      } else {
+        formPhone.value = '';
+        formPhone.removeAttribute('readonly');
+        formPhone.placeholder = 'Add Phone Number';
+      }
     }
 
     const summaryPhone = document.getElementById('summaryPhone');
     if (summaryPhone) {
-      summaryPhone.value = localStorage.getItem('patientPhone') || 'N/A';
+      const loggedPhone = localStorage.getItem('patientPhone');
+      summaryPhone.value = (loggedPhone && loggedPhone !== 'N/A') ? loggedPhone : '';
     }
   }
 }

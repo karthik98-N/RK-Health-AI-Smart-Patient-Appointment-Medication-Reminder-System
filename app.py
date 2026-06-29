@@ -308,6 +308,7 @@ def manage_appointments():
         age = int(data.get('age', 0))
         gender = data.get('gender')
         phone = data.get('phone')
+        email = data.get('email', '').strip().lower()
         doctor = data.get('doctor')
         department = data.get('department')
         date_str = data.get('date')
@@ -316,21 +317,28 @@ def manage_appointments():
         priority = data.get('priority', 'Normal')
         symptoms = data.get('symptoms', '')
         
-        # Check if patient exists or create new one
-        cursor.execute("SELECT id FROM patients WHERE name = ? COLLATE NOCASE", (patient_name,))
-        row = cursor.fetchone()
+        # Check if patient exists by email first, then fallback to name
+        row = None
+        if email:
+            cursor.execute("SELECT * FROM patients WHERE LOWER(email) = ?", (email,))
+            row = cursor.fetchone()
+        
+        if not row:
+            cursor.execute("SELECT * FROM patients WHERE name = ? COLLATE NOCASE", (patient_name,))
+            row = cursor.fetchone()
+            
         if row:
             patient_id = row['id']
             # Update patient info
             cursor.execute(
-                "UPDATE patients SET phone = ?, age = ?, gender = ? WHERE id = ?",
-                (phone, age, gender, patient_id)
+                "UPDATE patients SET phone = ?, email = COALESCE(email, ?), age = ?, gender = ? WHERE id = ?",
+                (phone, email or row['email'], age, gender, patient_id)
             )
         else:
             patient_id = f"RK-{random.randint(1000, 9999)}"
             cursor.execute(
-                "INSERT INTO patients (id, name, phone, age, gender, compliance, reminder_status) VALUES (?, ?, ?, ?, ?, 87, 'Pending')",
-                (patient_id, patient_name, phone, age, gender)
+                "INSERT INTO patients (id, name, phone, email, age, gender, compliance, reminder_status) VALUES (?, ?, ?, ?, ?, ?, 100, 'Pending')",
+                (patient_id, patient_name, phone, email or None, age, gender)
             )
             
         calendar_link = generate_calendar_link(
