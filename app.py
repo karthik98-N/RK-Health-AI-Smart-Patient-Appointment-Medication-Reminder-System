@@ -193,6 +193,63 @@ def get_patients():
         })
     return jsonify(patients_list)
 
+@app.route('/api/patients', methods=['POST'])
+def create_patient():
+    """Register a new patient dynamically if they do not exist."""
+    data = request.json or {}
+    phone = data.get('phone')
+    name = data.get('name')
+    if not phone:
+        return jsonify({'error': True, 'message': 'phone is required.'}), 400
+        
+    if not name:
+        last_digits = "".join([c for c in phone if c.isdigit()])
+        last_digits = last_digits[-4:] if len(last_digits) >= 4 else "New"
+        name = f"Patient - {last_digits}"
+        
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Check if patient exists with this phone number
+    # Normalize comparison by extracting digit characters
+    clean_target = "".join([c for c in phone if c.isdigit()])
+    cursor.execute("SELECT * FROM patients")
+    rows = cursor.fetchall()
+    patient = None
+    for r in rows:
+        r_phone = r['phone'] or ""
+        clean_r = "".join([c for c in r_phone if c.isdigit()])
+        if clean_target and clean_r and (clean_target in clean_r or clean_r in clean_target):
+            patient = r
+            break
+            
+    if patient:
+        conn.close()
+        return jsonify({
+            'success': True,
+            'id': patient['id'],
+            'name': patient['name'],
+            'phone': patient['phone'],
+            'message': 'Patient already exists.'
+        })
+        
+    # Generate new random ID
+    patient_id = f"RK-{random.randint(1000, 9999)}"
+    cursor.execute(
+        "INSERT INTO patients (id, name, phone, age, gender, compliance, reminder_status) VALUES (?, ?, ?, ?, 'Female', 100, 'Pending')",
+        (patient_id, name, phone, 35)
+    )
+    conn.commit()
+    conn.close()
+    
+    return jsonify({
+        'success': True,
+        'id': patient_id,
+        'name': name,
+        'phone': phone,
+        'message': 'New patient registered successfully.'
+    })
+
 @app.route('/api/patients/<id>', methods=['POST'])
 def update_patient(id):
     """Update patient details."""

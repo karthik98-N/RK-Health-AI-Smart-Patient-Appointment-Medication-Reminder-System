@@ -875,21 +875,20 @@ document.addEventListener('DOMContentLoaded', () => {
       sendBtn.disabled = true;
       sendBtn.textContent = 'Checking...';
 
-      const patients = await fetchAPI('/api/patients');
-      const normalizedTarget = phoneValue.replace(/[\s-+]/g, '');
-      let patient = patients.find(p => p.phone && p.phone.replace(/[\s-+]/g, '').includes(normalizedTarget));
-
-      // Fallback: If phone is unrecognized or placeholder, map to Anita Sharma (or first patient) for testing
-      if (!patient) {
-        patient = patients.find(p => p.name === 'Anita Sharma') || patients[0];
-        if (patient) {
-          patient.phone = phoneValue;
-          console.log(`[FALLBACK] Mapping phone number ${phoneValue} to patient: ${patient.name}`);
-        }
+      // Find or dynamically register the patient with this phone number
+      const registerRes = await fetchAPI('/api/patients', 'POST', { phone: phoneValue });
+      
+      let patient = null;
+      if (registerRes && registerRes.success) {
+        patient = {
+          id: registerRes.id,
+          name: registerRes.name,
+          phone: registerRes.phone
+        };
       }
 
       if (!patient) {
-        showToast('error', 'Authentication Failed', 'Phone number not found in patient records. Please contact RK Hospital support.');
+        showToast('error', 'Authentication Failed', 'Failed to retrieve or create patient profile. Please contact RK Hospital support.');
         sendBtn.disabled = false;
         sendBtn.textContent = 'Send OTP Code';
         return;
