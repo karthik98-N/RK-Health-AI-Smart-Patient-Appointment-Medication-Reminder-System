@@ -60,6 +60,8 @@ function doPost(e) {
       return responseSuccess(updatePatient(data.id, data));
     } else if (action === "updateMedication") {
       return responseSuccess(updateMedication(data.id, data));
+    } else if (action === "sendEmail") {
+      return responseSuccess(sendEmailAction(data));
     } else {
       return responseError("Invalid POST action requested.");
     }
@@ -258,4 +260,24 @@ function responseError(msg) {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST"
     });
+}
+
+/**
+ * Sends a real email from the connected Google Account.
+ */
+function sendEmailAction(data) {
+  const email = data.email;
+  const subject = data.subject || "RK Health Verification";
+  const message = data.message;
+  
+  if (!email) {
+    return { success: false, message: "Email is required." };
+  }
+  
+  try {
+    MailApp.sendEmail(email, subject, message);
+    return { success: true, message: "Email sent successfully." };
+  } catch (err) {
+    return { success: false, error: err.toString(), message: "Failed to dispatch email via MailApp." };
+  }
 }
