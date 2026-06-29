@@ -565,9 +565,24 @@ def send_sms():
             'message': 'Failed to send SMS reminder.'
         }), 500
 
+def get_apps_script_url():
+    """Extract APPS_SCRIPT_URL from frontend config.js file."""
+    try:
+        config_path = os.path.join(os.path.dirname(__file__), "rk-health", "config.js")
+        if os.path.exists(config_path):
+            with open(config_path, "r", encoding="utf-8") as f:
+                content = f.read()
+                import re
+                match = re.search(r'const\s+APPS_SCRIPT_URL\s*=\s*["\']([^"\']+)["\']', content)
+                if match:
+                    return match.group(1)
+    except Exception as e:
+        print("Error reading Apps Script URL from config.js:", e)
+    return None
+
 @app.route('/api/send-email', methods=['POST'])
 def send_email():
-    """Trigger an email reminder / OTP via SMTP."""
+    """Trigger an email reminder / OTP via SMTP or fallback to Google Apps Script."""
     data = request.json or {}
     email = data.get('email')
     message = data.get('message', 'Hello from RK Health.')
@@ -581,42 +596,70 @@ def send_email():
     smtp_user = os.getenv("SMTP_USER")
     smtp_password = os.getenv("SMTP_PASSWORD")
     
-    if not all([smtp_server, smtp_user, smtp_password]):
-        # Mock/Log Email delivery if SMTP credentials are not configured
-        print(f"[EMAIL MOCK] To: {email} | Subject: {subject} | Message: {message}")
-        return jsonify({
-            'success': True,
-            'mocked': True,
-            'message': 'Email processed (Mock mode - no SMTP credentials).'
-        })
-        
-    try:
-        import smtplib
-        from email.mime.text import MIMEText
-        from email.mime.multipart import MIMEMultipart
-        
-        msg = MIMEMultipart()
-        msg['From'] = smtp_user
-        msg['To'] = email
-        msg['Subject'] = subject
-        msg.attach(MIMEText(message, 'plain'))
-        
-        with smtplib.SMTP(smtp_server, int(smtp_port)) as server:
-            server.starttls()
-            server.login(smtp_user, smtp_password)
-            server.send_message(msg)
+    # Check if SMTP credentials are valid (not the placeholder string or empty)
+    has_valid_smtp = (
+        all([smtp_server, smtp_user, smtp_password]) and
+        "your-email@gmail.com" not in smtp_user and
+        "your-gmail-app-password" not in smtp_password
+    )
+    
+    if has_valid_smtp:
+        try:
+            import smtplib
+            from email.mime.text import MIMEText
+            from email.mime.multipart import MIMEMultipart
             
-        return jsonify({
-            'success': True,
-            'message': 'Email sent successfully.'
-        })
-    except Exception as e:
-        print("SMTP error:", e)
-        return jsonify({
-            'success': False,
-            'error': str(e),
-            'message': 'Failed to send Email.'
-        }), 500
+            msg = MIMEMultipart()
+            msg['From'] = smtp_user
+            msg['To'] = email
+            msg['Subject'] = subject
+            msg.attach(MIMEText(message, 'plain'))
+            
+            with smtplib.SMTP(smtp_server, int(smtp_port)) as server:
+                server.starttls()
+                server.login(smtp_user, smtp_password)
+                server.send_message(msg)
+                
+            return jsonify({
+                'success': True,
+                'message': 'Email sent successfully via custom SMTP.'
+            })
+        except Exception as e:
+            print("SMTP error, falling back to Apps Script/Mock:", e)
+            
+    # Fallback Step 1: Send via Google Apps Script Web App (if configured)
+    apps_script_url = get_apps_script_url()
+    if apps_script_url:
+        try:
+            import requests
+            print(f"[EMAIL] Attempting to dispatch email via Google Apps Script: {apps_script_url}")
+            response = requests.post(apps_script_url, json={
+                'action': 'sendEmail',
+                'email': email,
+                'subject': subject,
+                'message': message
+            }, timeout=15)
+            if response.status_code == 200:
+                res_json = response.json()
+                if not res_json.get('error') and res_json.get('success') != False:
+                    return jsonify({
+                        'success': True,
+                        'message': 'Email sent successfully via Google Apps Script.'
+                    })
+                else:
+                    print("Google Apps Script email error response:", res_json)
+            else:
+                print(f"Google Apps Script response status code: {response.status_code}")
+        except Exception as script_err:
+            print("Failed to dispatch email via Google Apps Script:", script_err)
+            
+    # Fallback Step 2: Mock mode (print to console log)
+    print(f"[EMAIL MOCK] To: {email} | Subject: {subject} | Message: {message}")
+    return jsonify({
+        'success': True,
+        'mocked': True,
+        'message': 'Email processed (Mock mode - no functional credentials/services available).'
+    })
 
 if __name__ == '__main__':
     port = int(os.getenv("FLASK_PORT", 5000))
