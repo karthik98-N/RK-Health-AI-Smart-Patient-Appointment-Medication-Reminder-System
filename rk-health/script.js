@@ -2,7 +2,7 @@
    RK Health – Backend-Integrated UI Actions
    ========================================================= */
 
-const ENABLE_PATIENT_LOGIN = false;
+const ENABLE_PATIENT_LOGIN = true;
 
 // APPS_SCRIPT_URL is loaded globally from config.js. When running on localhost, we default to the local Flask API.
 async function fetchAPI(endpoint, method = 'GET', body = null) {
