@@ -2,6 +2,8 @@
    RK Health – Backend-Integrated UI Actions
    ========================================================= */
 
+const ENABLE_PATIENT_LOGIN = false;
+
 // APPS_SCRIPT_URL is loaded globally from config.js. When running on localhost, we default to the local Flask API.
 async function fetchAPI(endpoint, method = 'GET', body = null) {
   if (APPS_SCRIPT_URL && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
@@ -148,7 +150,7 @@ async function loadPatients() {
     window.patientsList = data;
 
     const loggedInPhone = localStorage.getItem('patientPhone');
-    if (loggedInPhone) {
+    if (ENABLE_PATIENT_LOGIN && loggedInPhone) {
       const normalizedPhone = loggedInPhone.replace(/[\s-+]/g, '');
       window.patientsList = data.filter(p => p.phone && p.phone.replace(/[\s-+]/g, '').includes(normalizedPhone));
     }
@@ -167,7 +169,7 @@ async function loadMedications() {
     window.medicationsList = data;
 
     const loggedInName = localStorage.getItem('patientName');
-    if (loggedInName) {
+    if (ENABLE_PATIENT_LOGIN && loggedInName) {
       window.medicationsList = data.filter(m => (m.patient_name || m.patientName || '').toLowerCase() === loggedInName.toLowerCase());
     }
 
@@ -719,6 +721,7 @@ patientSearch?.addEventListener('input', (e) => {
 
 /* ---------- Patient Dashboard Stats Update ---------- */
 function updatePatientDashboardStats() {
+  if (!ENABLE_PATIENT_LOGIN) return;
   const loggedInName = localStorage.getItem('patientName');
   if (!loggedInName) return;
 
@@ -781,11 +784,35 @@ let otpPhone = '';
 let otpPatient = null;
 
 async function checkPatientLogin() {
-  const loggedInPhone = localStorage.getItem('patientPhone');
-  const loggedInName = localStorage.getItem('patientName');
   const loginScreen = document.getElementById('loginScreen');
   const patientProfileWidget = document.getElementById('patientProfileWidget');
   const patientsSidebarLink = document.getElementById('patientsSidebarLink');
+
+  if (!ENABLE_PATIENT_LOGIN) {
+    if (loginScreen) loginScreen.style.display = 'none';
+    if (patientProfileWidget) {
+      patientProfileWidget.style.display = 'flex';
+      document.getElementById('currentPatientName').textContent = 'Dr. Rohan K.';
+      document.getElementById('currentPatientPhone').textContent = 'Cardiologist';
+      document.getElementById('currentPatientAvatar').textContent = 'DR';
+      const logoutBtn = document.getElementById('logoutBtn');
+      if (logoutBtn) logoutBtn.style.display = 'none';
+    }
+    if (patientsSidebarLink) patientsSidebarLink.style.display = 'block';
+
+    const formPatientName = document.getElementById('patientName');
+    const formPhone = document.getElementById('phone');
+    if (formPatientName) {
+      formPatientName.removeAttribute('readonly');
+    }
+    if (formPhone) {
+      formPhone.removeAttribute('readonly');
+    }
+    return;
+  }
+
+  const loggedInPhone = localStorage.getItem('patientPhone');
+  const loggedInName = localStorage.getItem('patientName');
 
   if (!loggedInPhone || !loggedInName) {
     if (loginScreen) loginScreen.style.display = 'flex';
@@ -798,6 +825,8 @@ async function checkPatientLogin() {
       document.getElementById('currentPatientName').textContent = loggedInName;
       document.getElementById('currentPatientPhone').textContent = loggedInPhone;
       document.getElementById('currentPatientAvatar').textContent = loggedInName.substring(0, 2).toUpperCase();
+      const logoutBtn = document.getElementById('logoutBtn');
+      if (logoutBtn) logoutBtn.style.display = 'inline-flex';
     }
     
     if (patientsSidebarLink) patientsSidebarLink.style.display = 'none';
