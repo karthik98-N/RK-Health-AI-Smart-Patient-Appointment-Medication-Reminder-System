@@ -149,10 +149,9 @@ async function loadPatients() {
     const data = await fetchAPI('/api/patients');
     window.patientsList = data;
 
-    const loggedInPhone = localStorage.getItem('patientPhone');
-    if (ENABLE_PATIENT_LOGIN && loggedInPhone) {
-      const normalizedPhone = loggedInPhone.replace(/[\s-+]/g, '');
-      window.patientsList = data.filter(p => p.phone && p.phone.replace(/[\s-+]/g, '').includes(normalizedPhone));
+    const loggedInEmail = localStorage.getItem('patientEmail');
+    if (ENABLE_PATIENT_LOGIN && loggedInEmail) {
+      window.patientsList = data.filter(p => p.email && p.email.toLowerCase() === loggedInEmail.toLowerCase());
     }
 
     renderPatients(window.patientsList);
@@ -780,7 +779,7 @@ function updatePatientDashboardStats() {
 
 /* ---------- Patient Portal Authentication ---------- */
 let generatedOtp = null;
-let otpPhone = '';
+let otpEmail = '';
 let otpPatient = null;
 
 async function checkPatientLogin() {
@@ -811,10 +810,10 @@ async function checkPatientLogin() {
     return;
   }
 
-  const loggedInPhone = localStorage.getItem('patientPhone');
+  const loggedInEmail = localStorage.getItem('patientEmail');
   const loggedInName = localStorage.getItem('patientName');
 
-  if (!loggedInPhone || !loggedInName) {
+  if (!loggedInEmail || !loggedInName) {
     if (loginScreen) loginScreen.style.display = 'flex';
     if (patientProfileWidget) patientProfileWidget.style.display = 'none';
     if (patientsSidebarLink) patientsSidebarLink.style.display = 'none';
@@ -823,7 +822,7 @@ async function checkPatientLogin() {
     if (patientProfileWidget) {
       patientProfileWidget.style.display = 'flex';
       document.getElementById('currentPatientName').textContent = loggedInName;
-      document.getElementById('currentPatientPhone').textContent = loggedInPhone;
+      document.getElementById('currentPatientPhone').textContent = loggedInEmail;
       document.getElementById('currentPatientAvatar').textContent = loggedInName.substring(0, 2).toUpperCase();
       const logoutBtn = document.getElementById('logoutBtn');
       if (logoutBtn) logoutBtn.style.display = 'inline-flex';
@@ -847,13 +846,13 @@ async function checkPatientLogin() {
       formPatientName.setAttribute('readonly', 'readonly');
     }
     if (formPhone) {
-      formPhone.value = loggedInPhone;
+      formPhone.value = localStorage.getItem('patientPhone') || 'N/A';
       formPhone.setAttribute('readonly', 'readonly');
     }
 
     const summaryPhone = document.getElementById('summaryPhone');
     if (summaryPhone) {
-      summaryPhone.value = loggedInPhone;
+      summaryPhone.value = localStorage.getItem('patientPhone') || 'N/A';
     }
   }
 }
@@ -862,11 +861,11 @@ async function checkPatientLogin() {
 document.addEventListener('DOMContentLoaded', () => {
   // Step 1: Send OTP
   document.getElementById('sendOtpBtn')?.addEventListener('click', async () => {
-    const phoneInput = document.getElementById('loginPhone');
-    const phoneValue = phoneInput.value.trim();
+    const emailInput = document.getElementById('loginEmail');
+    const emailValue = emailInput ? emailInput.value.trim() : '';
 
-    if (!phoneValue) {
-      showToast('error', 'Error', 'Please enter your phone number.');
+    if (!emailValue) {
+      showToast('error', 'Error', 'Please enter your email address.');
       return;
     }
 
@@ -875,15 +874,16 @@ document.addEventListener('DOMContentLoaded', () => {
       sendBtn.disabled = true;
       sendBtn.textContent = 'Checking...';
 
-      // Find or dynamically register the patient with this phone number
-      const registerRes = await fetchAPI('/api/patients', 'POST', { phone: phoneValue });
+      // Find or dynamically register the patient with this email
+      const registerRes = await fetchAPI('/api/patients', 'POST', { email: emailValue });
       
       let patient = null;
       if (registerRes && registerRes.success) {
         patient = {
           id: registerRes.id,
           name: registerRes.name,
-          phone: registerRes.phone
+          phone: registerRes.phone || '',
+          email: registerRes.email
         };
       }
 
@@ -895,25 +895,26 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
-      otpPhone = phoneValue;
+      otpEmail = emailValue;
       otpPatient = patient;
-      console.log(`[TESTING ONLY] Generated OTP code for ${patient.name} (${phoneValue}): ${generatedOtp}`);
+      console.log(`[TESTING ONLY] Generated OTP code for ${patient.name} (${emailValue}): ${generatedOtp}`);
 
-      showToast('info', 'Sending OTP', `Requesting OTP SMS to ${phoneValue}...`);
+      showToast('info', 'Sending OTP', `Requesting OTP email to ${emailValue}...`);
       
       try {
-        const smsRes = await fetchAPI('/api/send-sms', 'POST', {
-          phone: phoneValue,
+        const emailRes = await fetchAPI('/api/send-email', 'POST', {
+          email: emailValue,
+          subject: 'RK Health Patient Portal Verification',
           message: `RK Health: Your OTP code is ${generatedOtp}. Do not share this code with anyone.`
         });
-        if (smsRes && (smsRes.success || smsRes.mocked)) {
-          showToast('success', 'OTP Sent', `OTP code sent to ${phoneValue}.`);
+        if (emailRes && (emailRes.success || emailRes.mocked)) {
+          showToast('success', 'OTP Sent', `OTP code sent to ${emailValue}.`);
         } else {
-          showToast('warning', 'SMS Gateway Offline', (smsRes && smsRes.message) || 'Twilio SMS failed. Please use developer bypass code 123456.');
+          showToast('warning', 'Email Service Offline', (emailRes && emailRes.message) || 'Email dispatch failed. Please use developer bypass code 123456.');
         }
-      } catch (smsErr) {
-        console.error('SMS send error:', smsErr);
-        showToast('warning', 'SMS Gateway Error', 'Could not reach SMS service. Please use developer bypass code 123456.');
+      } catch (emailErr) {
+        console.error('Email send error:', emailErr);
+        showToast('warning', 'Email Service Error', 'Could not reach email service. Please use developer bypass code 123456.');
       }
       
       document.getElementById('loginStep1').style.display = 'none';
@@ -942,11 +943,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (otpValue === generatedOtp || otpValue === '123456') {
       showToast('success', 'Verification Successful', 'Welcome to RK Health portal!');
-      localStorage.setItem('patientPhone', otpPhone);
+      localStorage.setItem('patientEmail', otpEmail);
+      localStorage.setItem('patientPhone', otpPatient.phone || '');
       localStorage.setItem('patientName', otpPatient.name);
       
       otpInput.value = '';
-      document.getElementById('loginPhone').value = '';
+      const emailInput = document.getElementById('loginEmail');
+      if (emailInput) emailInput.value = '';
       
       checkPatientLogin();
       loadPatients();
@@ -956,12 +959,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  document.getElementById('backToPhoneBtn')?.addEventListener('click', () => {
+  document.getElementById('backToEmailBtn')?.addEventListener('click', () => {
     document.getElementById('loginStep2').style.display = 'none';
     document.getElementById('loginStep1').style.display = 'block';
   });
 
   document.getElementById('logoutBtn')?.addEventListener('click', () => {
+    localStorage.removeItem('patientEmail');
     localStorage.removeItem('patientPhone');
     localStorage.removeItem('patientName');
     showToast('info', 'Logged Out', 'Successfully logged out of your session.');

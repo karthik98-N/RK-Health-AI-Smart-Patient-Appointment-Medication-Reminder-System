@@ -57,11 +57,11 @@
     <h2>RK Health Patient Portal</h2>
     <p class="muted">Access your appointments, medications, and health summaries securely.</p>
     
-    <!-- Step 1: Request Phone Number -->
+    <!-- Step 1: Request Email Address -->
     <div id="loginStep1">
       <div class="field mt">
-        <label for="loginPhone">Phone Number</label>
-        <input type="tel" id="loginPhone" placeholder="e.g., +919848215798" required style="width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg);" />
+        <label for="loginEmail">Email Address</label>
+        <input type="email" id="loginEmail" placeholder="e.g., patient@example.com" required style="width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg);" />
       </div>
       <button class="btn btn-primary" id="sendOtpBtn" style="width: 100%; margin-top: 16px; justify-content: center;">Send OTP Code</button>
     </div>
@@ -71,10 +71,10 @@
       <div class="field mt">
         <label for="loginOtp">Enter OTP Code</label>
         <input type="text" id="loginOtp" placeholder="Enter 6-digit code" maxlength="6" required style="width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); text-align: center; font-size: 18px; letter-spacing: 4px;" />
-        <span class="muted" style="font-size: 11px; display: block; margin-top: 6px;">For testing, the OTP will be sent to your phone number.</span>
+        <span class="muted" style="font-size: 11px; display: block; margin-top: 6px;">For testing, the OTP will be sent to your email address.</span>
       </div>
       <button class="btn btn-primary" id="verifyOtpBtn" style="width: 100%; margin-top: 16px; justify-content: center;">Verify & Login</button>
-      <button class="btn btn-outline" id="backToPhoneBtn" style="width: 100%; margin-top: 8px; justify-content: center;">Back</button>
+      <button class="btn btn-outline" id="backToEmailBtn" style="width: 100%; margin-top: 8px; justify-content: center;">Back</button>
     </div>
   </div>
 </div>

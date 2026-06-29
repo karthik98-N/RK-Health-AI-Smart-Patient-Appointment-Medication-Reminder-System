@@ -38,12 +38,27 @@ def init_db():
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
             phone TEXT,
+            email TEXT,
             age INTEGER,
             gender TEXT,
             compliance INTEGER DEFAULT 87,
             reminder_status TEXT DEFAULT 'Pending'
         )
     ''')
+    
+    # Safely alter table to add email column if database already exists
+    try:
+        cursor.execute("ALTER TABLE patients ADD COLUMN email TEXT")
+    except sqlite3.OperationalError:
+        pass
+        
+    # Update existing rows with default emails
+    cursor.execute("UPDATE patients SET email = 'anita@example.com' WHERE name = 'Anita Sharma' AND email IS NULL")
+    cursor.execute("UPDATE patients SET email = 'ramesh@example.com' WHERE name = 'Ramesh Patel' AND email IS NULL")
+    cursor.execute("UPDATE patients SET email = 'priya@example.com' WHERE name = 'Priya Verma' AND email IS NULL")
+    cursor.execute("UPDATE patients SET email = 'karan@example.com' WHERE name = 'Karan Singh' AND email IS NULL")
+    cursor.execute("UPDATE patients SET email = 'neha@example.com' WHERE name = 'Neha Kapoor' AND email IS NULL")
+    cursor.execute("UPDATE patients SET email = 'suresh@example.com' WHERE name = 'Suresh Yadav' AND email IS NULL")
     
     # Create Appointments Table
     cursor.execute('''
@@ -86,15 +101,15 @@ def init_db():
     if cursor.fetchone()[0] == 0:
         # Seed Patients
         patients_seed = [
-            ('RK-0921', 'Anita Sharma', '+91 98xxxxxx21', 42, 'Female', 92, 'Sent'),
-            ('RK-0918', 'Ramesh Patel', '+91 98xxxxxx18', 56, 'Male', 78, 'Pending'),
-            ('RK-0905', 'Priya Verma', '+91 98xxxxxx05', 31, 'Female', 64, 'Missed'),
-            ('RK-0899', 'Karan Singh', '+91 98xxxxxx99', 65, 'Male', 88, 'Sent'),
-            ('RK-0882', 'Neha Kapoor', '+91 98xxxxxx82', 29, 'Female', 70, 'Sent'),
-            ('RK-0870', 'Suresh Yadav', '+91 98xxxxxx70', 48, 'Male', 95, 'Sent')
+            ('RK-0921', 'Anita Sharma', '+91 98xxxxxx21', 'anita@example.com', 42, 'Female', 92, 'Sent'),
+            ('RK-0918', 'Ramesh Patel', '+91 98xxxxxx18', 'ramesh@example.com', 56, 'Male', 78, 'Pending'),
+            ('RK-0905', 'Priya Verma', '+91 98xxxxxx05', 'priya@example.com', 31, 'Female', 64, 'Missed'),
+            ('RK-0899', 'Karan Singh', '+91 98xxxxxx99', 'karan@example.com', 65, 'Male', 88, 'Sent'),
+            ('RK-0882', 'Neha Kapoor', '+91 98xxxxxx82', 'neha@example.com', 29, 'Female', 70, 'Sent'),
+            ('RK-0870', 'Suresh Yadav', '+91 98xxxxxx70', 'suresh@example.com', 48, 'Male', 95, 'Sent')
         ]
         cursor.executemany(
-            "INSERT INTO patients (id, name, phone, age, gender, compliance, reminder_status) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO patients (id, name, phone, email, age, gender, compliance, reminder_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             patients_seed
         )
         
@@ -170,7 +185,7 @@ def get_patients():
     # Join with latest appointment details and latest medication details if available
     cursor = conn.cursor()
     cursor.execute('''
-        SELECT p.id, p.name, p.compliance, p.reminder_status as reminder,
+        SELECT p.id, p.name, p.phone, p.email, p.compliance, p.reminder_status as reminder,
                (SELECT date FROM appointments WHERE patient_id = p.id ORDER BY date DESC, time DESC LIMIT 1) as date,
                (SELECT doctor FROM appointments WHERE patient_id = p.id ORDER BY date DESC, time DESC LIMIT 1) as doctor,
                (SELECT name FROM medications WHERE patient_name = p.name ORDER BY id DESC LIMIT 1) as med
@@ -185,6 +200,8 @@ def get_patients():
         patients_list.append({
             'id': r['id'],
             'name': r['name'],
+            'phone': r['phone'] if r['phone'] else 'N/A',
+            'email': r['email'] if r['email'] else 'N/A',
             'date': r['date'] if r['date'] else 'N/A',
             'doctor': r['doctor'] if r['doctor'] else 'N/A',
             'med': r['med'] if r['med'] else 'N/A',
@@ -197,32 +214,31 @@ def get_patients():
 def create_patient():
     """Register a new patient dynamically if they do not exist."""
     data = request.json or {}
+    email = data.get('email', '').strip().lower()
     phone = data.get('phone')
     name = data.get('name')
-    if not phone:
-        return jsonify({'error': True, 'message': 'phone is required.'}), 400
-        
-    if not name:
-        last_digits = "".join([c for c in phone if c.isdigit()])
-        last_digits = last_digits[-4:] if len(last_digits) >= 4 else "New"
-        name = f"Patient - {last_digits}"
+    
+    if not email and not phone:
+        return jsonify({'error': True, 'message': 'email or phone is required.'}), 400
         
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Check if patient exists with this phone number
-    # Normalize comparison by extracting digit characters
-    clean_target = "".join([c for c in phone if c.isdigit()])
-    cursor.execute("SELECT * FROM patients")
-    rows = cursor.fetchall()
     patient = None
-    for r in rows:
-        r_phone = r['phone'] or ""
-        clean_r = "".join([c for c in r_phone if c.isdigit()])
-        if clean_target and clean_r and (clean_target in clean_r or clean_r in clean_target):
-            patient = r
-            break
-            
+    if email:
+        cursor.execute("SELECT * FROM patients WHERE LOWER(email) = ?", (email,))
+        patient = cursor.fetchone()
+    elif phone:
+        clean_target = "".join([c for c in phone if c.isdigit()])
+        cursor.execute("SELECT * FROM patients")
+        rows = cursor.fetchall()
+        for r in rows:
+            r_phone = r['phone'] or ""
+            clean_r = "".join([c for c in r_phone if c.isdigit()])
+            if clean_target and clean_r and (clean_target in clean_r or clean_r in clean_target):
+                patient = r
+                break
+                
     if patient:
         conn.close()
         return jsonify({
@@ -230,14 +246,23 @@ def create_patient():
             'id': patient['id'],
             'name': patient['name'],
             'phone': patient['phone'],
+            'email': patient['email'],
             'message': 'Patient already exists.'
         })
         
     # Generate new random ID
     patient_id = f"RK-{random.randint(1000, 9999)}"
+    if not name:
+        if email:
+            name = email.split('@')[0].replace('.', ' ').title()
+        else:
+            last_digits = "".join([c for c in phone if c.isdigit()])
+            last_digits = last_digits[-4:] if len(last_digits) >= 4 else "New"
+            name = f"Patient - {last_digits}"
+            
     cursor.execute(
-        "INSERT INTO patients (id, name, phone, age, gender, compliance, reminder_status) VALUES (?, ?, ?, ?, 'Female', 100, 'Pending')",
-        (patient_id, name, phone, 35)
+        "INSERT INTO patients (id, name, phone, email, age, gender, compliance, reminder_status) VALUES (?, ?, ?, ?, 35, 'Female', 100, 'Pending')",
+        (patient_id, name, phone, email)
     )
     conn.commit()
     conn.close()
@@ -247,6 +272,7 @@ def create_patient():
         'id': patient_id,
         'name': name,
         'phone': phone,
+        'email': email,
         'message': 'New patient registered successfully.'
     })
 
@@ -255,6 +281,7 @@ def update_patient(id):
     """Update patient details."""
     data = request.json
     phone = data.get('phone')
+    email = data.get('email')
     age = int(data.get('age', 0))
     gender = data.get('gender')
     compliance = int(data.get('compliance', 87))
@@ -262,8 +289,8 @@ def update_patient(id):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
-        "UPDATE patients SET phone = ?, age = ?, gender = ?, compliance = ? WHERE id = ?",
-        (phone, age, gender, compliance, id)
+        "UPDATE patients SET phone = ?, email = ?, age = ?, gender = ?, compliance = ? WHERE id = ?",
+        (phone, email, age, gender, compliance, id)
     )
     conn.commit()
     conn.close()
@@ -536,6 +563,59 @@ def send_sms():
             'success': False,
             'error': str(e),
             'message': 'Failed to send SMS reminder.'
+        }), 500
+
+@app.route('/api/send-email', methods=['POST'])
+def send_email():
+    """Trigger an email reminder / OTP via SMTP."""
+    data = request.json or {}
+    email = data.get('email')
+    message = data.get('message', 'Hello from RK Health.')
+    subject = data.get('subject', 'RK Health Verification')
+    
+    if not email:
+        return jsonify({'error': True, 'message': 'email is required.'}), 400
+        
+    smtp_server = os.getenv("SMTP_SERVER")
+    smtp_port = os.getenv("SMTP_PORT", "587")
+    smtp_user = os.getenv("SMTP_USER")
+    smtp_password = os.getenv("SMTP_PASSWORD")
+    
+    if not all([smtp_server, smtp_user, smtp_password]):
+        # Mock/Log Email delivery if SMTP credentials are not configured
+        print(f"[EMAIL MOCK] To: {email} | Subject: {subject} | Message: {message}")
+        return jsonify({
+            'success': True,
+            'mocked': True,
+            'message': 'Email processed (Mock mode - no SMTP credentials).'
+        })
+        
+    try:
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+        
+        msg = MIMEMultipart()
+        msg['From'] = smtp_user
+        msg['To'] = email
+        msg['Subject'] = subject
+        msg.attach(MIMEText(message, 'plain'))
+        
+        with smtplib.SMTP(smtp_server, int(smtp_port)) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_password)
+            server.send_message(msg)
+            
+        return jsonify({
+            'success': True,
+            'message': 'Email sent successfully.'
+        })
+    except Exception as e:
+        print("SMTP error:", e)
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': 'Failed to send Email.'
         }), 500
 
 if __name__ == '__main__':
