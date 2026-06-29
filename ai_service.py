@@ -52,7 +52,8 @@ def generate_medical_summary(patient_name, doctor_notes, medications_info):
             "visit_overview": f"Patient {patient_name} completed their visit. Main complaints reviewed: {doctor_notes}.",
             "diagnosis_explanation": "Vitals are stable. Presenting symptoms indicate need for regular observation and symptomatic relief.",
             "medication_instructions": f"Continue prescribed regimen: {medications_info or 'strictly as directed'}.",
-            "follow_up_advice": "Return for a routine follow-up in 4 weeks, or sooner if symptoms worsen."
+            "follow_up_advice": "Return for a routine follow-up in 4 weeks, or sooner if symptoms worsen.",
+            "risk_level": "High" if "chest" in doctor_notes.lower() or "fatigue" in doctor_notes.lower() else "Low"
         }
         
     prompt = f"""
@@ -66,7 +67,8 @@ def generate_medical_summary(patient_name, doctor_notes, medications_info):
         "visit_overview": "A clear, concise 2-3 sentence overview of the visit.",
         "diagnosis_explanation": "A simplified, patient-friendly explanation of what these symptoms/conditions mean.",
         "medication_instructions": "Clear step-by-step guidance on taking prescriptions or managing medications.",
-        "follow_up_advice": "Recommended next steps, lifestyle changes, or follow-up schedule."
+        "follow_up_advice": "Recommended next steps, lifestyle changes, or follow-up schedule.",
+        "risk_level": "Assessment of patient urgency: Low, Moderate, or High."
     }}
     """
     

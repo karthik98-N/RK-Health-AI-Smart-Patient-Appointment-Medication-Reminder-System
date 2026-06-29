@@ -487,18 +487,47 @@ def generate_ai_summary():
     priority = data.get('priority', 'Normal')
     
     doctor_notes = f"Department: {department}. Doctor: {doctor}. Visit Type: {visit_type}. Symptoms: {symptoms}."
-    medications_info = "Atorvastatin 10mg, Metoprolol 25mg"
+    
+    # Look up patient's medications dynamically from the database
+    meds_list = []
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT name, dose, freq FROM medications WHERE patient_name = ? COLLATE NOCASE", (patient_name,))
+        rows = cursor.fetchall()
+        for r in rows:
+            meds_list.append(f"{r['name']} {r['dose']} ({r['freq']})")
+        conn.close()
+    except Exception as db_err:
+        print("Database error in generate_ai_summary meds lookup:", db_err)
+        
+    medications_info = ", ".join(meds_list) if meds_list else "Follow doctor guidelines."
     
     try:
         result = generate_medical_summary(patient_name, doctor_notes, medications_info)
         
         # Map output to what the frontend expects:
         # summary, risk_level, follow_up, medications
+        summary_text = result.get('summary') or (
+            result.get('visit_overview', '') + "\n\n" + result.get('diagnosis_explanation', '')
+        )
+        risk = result.get('risk_level') or (
+            'High' if priority.lower() == 'high' or 'chest' in symptoms.lower() else 'Low'
+        )
+        follow_up = result.get('follow_up') or result.get('follow_up_advice', '4 weeks')
+        
+        meds_instr = result.get('medications') or [
+            result.get('medication_instructions', 'Follow doctor guidelines.')
+        ]
+        if isinstance(meds_instr, str):
+            meds_instr = [meds_instr]
+            
         return jsonify({
-            'summary': result.get('visit_overview', '') + "\n" + result.get('diagnosis_explanation', ''),
-            'risk_level': result.get('risk_level', 'Moderate' if priority == 'High' or 'chest' in symptoms.lower() else 'Low'),
-            'follow_up': result.get('follow_up_advice', '4 weeks'),
-            'medications': [result.get('medication_instructions', 'Follow doctor guidelines.')]
+            'success': True,
+            'summary': summary_text,
+            'risk_level': risk,
+            'follow_up': follow_up,
+            'medications': meds_instr
         })
     except Exception as e:
         return jsonify({
@@ -533,13 +562,101 @@ def generate_summary_test_route():
             'message': str(e)
         }), 500
 
+def dispatch_email(email, subject, message):
+    """Unified email sender using custom SMTP with automated Google Apps Script Web App fallback."""
+    smtp_server = os.getenv("SMTP_SERVER")
+    smtp_port = os.getenv("SMTP_PORT", "587")
+    smtp_user = os.getenv("SMTP_USER")
+    smtp_password = os.getenv("SMTP_PASSWORD")
+    
+    # Check if SMTP credentials are valid (not default placeholder strings or empty)
+    has_valid_smtp = (
+        all([smtp_server, smtp_user, smtp_password]) and
+        "your-email@gmail.com" not in smtp_user and
+        "your-gmail-app-password" not in smtp_password
+    )
+    
+    if has_valid_smtp:
+        try:
+            import smtplib
+            from email.mime.text import MIMEText
+            from email.mime.multipart import MIMEMultipart
+            
+            msg = MIMEMultipart()
+            msg['From'] = smtp_user
+            msg['To'] = email
+            msg['Subject'] = subject
+            msg.attach(MIMEText(message, 'plain'))
+            
+            with smtplib.SMTP(smtp_server, int(smtp_port)) as server:
+                server.starttls()
+                server.login(smtp_user, smtp_password)
+                server.send_message(msg)
+            print(f"[EMAIL SUCCESS] Dispatched to {email} via SMTP.")
+            return True, "Email sent successfully via custom SMTP."
+        except Exception as e:
+            print("SMTP error, falling back to Apps Script/Mock:", e)
+            
+    # Fallback Step 1: Send via Google Apps Script Web App (if configured)
+    apps_script_url = get_apps_script_url()
+    if apps_script_url:
+        try:
+            import requests
+            print(f"[EMAIL] Attempting to dispatch email via Google Apps Script: {apps_script_url}")
+            response = requests.post(apps_script_url, json={
+                'action': 'sendEmail',
+                'email': email,
+                'subject': subject,
+                'message': message
+            }, timeout=15)
+            if response.status_code == 200:
+                res_json = response.json()
+                if not res_json.get('error') and res_json.get('success') != False:
+                    print(f"[EMAIL SUCCESS] Dispatched to {email} via Google Apps Script.")
+                    return True, "Email sent successfully via Google Apps Script."
+                else:
+                    print("Google Apps Script email error response:", res_json)
+            else:
+                print(f"Google Apps Script response status code: {response.status_code}")
+        except Exception as script_err:
+            print("Failed to dispatch email via Google Apps Script:", script_err)
+            
+    # Fallback Step 2: Mock mode (print to console log)
+    print(f"[EMAIL MOCK] To: {email} | Subject: {subject} | Message: {message}")
+    return True, "Email processed (Mock mode - no functional credentials/services available)."
+
 @app.route('/api/send-sms', methods=['POST'])
 def send_sms():
-    """Trigger an SMS reminder via Twilio."""
-    data = request.json
+    """Trigger an SMS reminder via Twilio with automatic email copy fallback."""
+    data = request.json or {}
     phone = data.get('phone')
     message = data.get('message', 'Reminder from RK Health.')
     
+    # Check if there is an associated patient with an email address
+    email = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        search_phone = phone[-10:] if phone and len(phone) >= 10 else phone
+        if search_phone:
+            cursor.execute("SELECT email FROM patients WHERE phone LIKE ?", (f"%{search_phone}",))
+            row = cursor.fetchone()
+            if row:
+                email = row['email']
+        conn.close()
+    except Exception as db_err:
+        print("Database lookup error in send_sms:", db_err)
+        
+    # Send email copy to patient's email if available
+    email_status = "Not sent (no linked email)"
+    if email:
+        try:
+            success, msg = dispatch_email(email, "RK Health Notification Reminder", message)
+            email_status = f"Sent to {email} ({msg})"
+        except Exception as email_err:
+            print("Failed to dispatch email copy:", email_err)
+            email_status = f"Failed to send email copy: {email_err}"
+            
     account_sid = os.getenv("TWILIO_ACCOUNT_SID")
     auth_token = os.getenv("TWILIO_AUTH_TOKEN")
     from_phone = os.getenv("TWILIO_PHONE_NUMBER")
@@ -550,7 +667,7 @@ def send_sms():
         return jsonify({
             'success': True,
             'mocked': True,
-            'message': 'SMS reminder processed (Mock mode - no API credentials).'
+            'message': f'SMS processed (Mock mode). Email status: {email_status}'
         })
         
     try:
@@ -563,14 +680,14 @@ def send_sms():
         return jsonify({
             'success': True,
             'sms_sid': sms.sid,
-            'message': 'SMS reminder sent successfully.'
+            'message': f'SMS reminder sent successfully. Email status: {email_status}'
         })
     except Exception as e:
         print("Twilio API error:", e)
         return jsonify({
             'success': False,
             'error': str(e),
-            'message': 'Failed to send SMS reminder.'
+            'message': f'Failed to send SMS. Email status: {email_status}'
         }), 500
 
 def get_apps_script_url():
@@ -599,74 +716,10 @@ def send_email():
     if not email:
         return jsonify({'error': True, 'message': 'email is required.'}), 400
         
-    smtp_server = os.getenv("SMTP_SERVER")
-    smtp_port = os.getenv("SMTP_PORT", "587")
-    smtp_user = os.getenv("SMTP_USER")
-    smtp_password = os.getenv("SMTP_PASSWORD")
-    
-    # Check if SMTP credentials are valid (not the placeholder string or empty)
-    has_valid_smtp = (
-        all([smtp_server, smtp_user, smtp_password]) and
-        "your-email@gmail.com" not in smtp_user and
-        "your-gmail-app-password" not in smtp_password
-    )
-    
-    if has_valid_smtp:
-        try:
-            import smtplib
-            from email.mime.text import MIMEText
-            from email.mime.multipart import MIMEMultipart
-            
-            msg = MIMEMultipart()
-            msg['From'] = smtp_user
-            msg['To'] = email
-            msg['Subject'] = subject
-            msg.attach(MIMEText(message, 'plain'))
-            
-            with smtplib.SMTP(smtp_server, int(smtp_port)) as server:
-                server.starttls()
-                server.login(smtp_user, smtp_password)
-                server.send_message(msg)
-                
-            return jsonify({
-                'success': True,
-                'message': 'Email sent successfully via custom SMTP.'
-            })
-        except Exception as e:
-            print("SMTP error, falling back to Apps Script/Mock:", e)
-            
-    # Fallback Step 1: Send via Google Apps Script Web App (if configured)
-    apps_script_url = get_apps_script_url()
-    if apps_script_url:
-        try:
-            import requests
-            print(f"[EMAIL] Attempting to dispatch email via Google Apps Script: {apps_script_url}")
-            response = requests.post(apps_script_url, json={
-                'action': 'sendEmail',
-                'email': email,
-                'subject': subject,
-                'message': message
-            }, timeout=15)
-            if response.status_code == 200:
-                res_json = response.json()
-                if not res_json.get('error') and res_json.get('success') != False:
-                    return jsonify({
-                        'success': True,
-                        'message': 'Email sent successfully via Google Apps Script.'
-                    })
-                else:
-                    print("Google Apps Script email error response:", res_json)
-            else:
-                print(f"Google Apps Script response status code: {response.status_code}")
-        except Exception as script_err:
-            print("Failed to dispatch email via Google Apps Script:", script_err)
-            
-    # Fallback Step 2: Mock mode (print to console log)
-    print(f"[EMAIL MOCK] To: {email} | Subject: {subject} | Message: {message}")
+    success, msg = dispatch_email(email, subject, message)
     return jsonify({
-        'success': True,
-        'mocked': True,
-        'message': 'Email processed (Mock mode - no functional credentials/services available).'
+        'success': success,
+        'message': msg
     })
 
 if __name__ == '__main__':

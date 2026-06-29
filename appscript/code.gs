@@ -62,6 +62,8 @@ function doPost(e) {
       return responseSuccess(updateMedication(data.id, data));
     } else if (action === "sendEmail") {
       return responseSuccess(sendEmailAction(data));
+    } else if (action === "sendSMS") {
+      return responseSuccess(sendSMSAction(data));
     } else {
       return responseError("Invalid POST action requested.");
     }
@@ -280,4 +282,56 @@ function sendEmailAction(data) {
   } catch (err) {
     return { success: false, error: err.toString(), message: "Failed to dispatch email via MailApp." };
   }
+}
+
+/**
+ * Triggers notification. Simulates SMS via Google Apps Script by dispatching email to the registered patient.
+ */
+function sendSMSAction(data) {
+  const phone = data.phone;
+  const message = data.message;
+  
+  if (!phone) {
+    return { success: false, message: "Phone is required." };
+  }
+  
+  let email = "";
+  try {
+    const pSheet = getSheet("patients");
+    const pValues = pSheet.getDataRange().getValues();
+    const searchPhone = phone.toString().replace(/\D/g, "");
+    const cleanSearch = searchPhone.substring(searchPhone.length - 10);
+    
+    for (let i = 1; i < pValues.length; i++) {
+      const dbPhone = pValues[i][2] ? pValues[i][2].toString().replace(/\D/g, "") : "";
+      const cleanDb = dbPhone.substring(dbPhone.length - 10);
+      if (cleanSearch && cleanDb && cleanSearch === cleanDb) {
+        const headers = pValues[0];
+        let emailIdx = -1;
+        for (let j = 0; j < headers.length; j++) {
+          if (headers[j].toString().toLowerCase() === "email") {
+            emailIdx = j;
+            break;
+          }
+        }
+        if (emailIdx !== -1) {
+          email = pValues[i][emailIdx];
+        }
+        break;
+      }
+    }
+  } catch (err) {
+    // Lookup failure
+  }
+  
+  if (email) {
+    try {
+      MailApp.sendEmail(email, "RK Health Notification Reminder", message);
+      return { success: true, message: "SMS simulated: Notification copy sent to " + email };
+    } catch (err) {
+      return { success: true, warning: err.toString(), message: "Linked email found but failed to send." };
+    }
+  }
+  
+  return { success: true, message: "SMS processed (No linked email found to forward copy)." };
 }
