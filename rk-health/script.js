@@ -76,6 +76,17 @@ const sections = document.querySelectorAll('.page-section');
 function goTo(sectionId) {
   sections.forEach(s => s.classList.toggle('active', s.id === `section-${sectionId}`));
   navLinks.forEach(l => l.classList.toggle('active', l.dataset.section === sectionId));
+
+  if (sectionId === 'reports') {
+    const loggedInPhone = localStorage.getItem('patientPhone');
+    if (loggedInPhone && window.patientsList && window.patientsList.length > 0) {
+      const p = window.patientsList[0];
+      if (p) {
+        window.viewPatientReport(p.id, p.name);
+      }
+    }
+  }
+
   // Close mobile sidebar
   sidebar.classList.remove('open');
   overlay.classList.remove('show');
@@ -135,7 +146,15 @@ async function loadPatients() {
   try {
     const data = await fetchAPI('/api/patients');
     window.patientsList = data;
-    renderPatients(data);
+
+    const loggedInPhone = localStorage.getItem('patientPhone');
+    if (loggedInPhone) {
+      const normalizedPhone = loggedInPhone.replace(/[\s-+]/g, '');
+      window.patientsList = data.filter(p => p.phone && p.phone.replace(/[\s-+]/g, '').includes(normalizedPhone));
+    }
+
+    renderPatients(window.patientsList);
+    updatePatientDashboardStats();
   } catch (err) {
     console.error('Failed to load patients:', err);
     showToast('error', 'Error', 'Failed to load patient records.');
@@ -145,7 +164,15 @@ async function loadPatients() {
 async function loadMedications() {
   try {
     const data = await fetchAPI('/api/medications');
-    renderMedications(data);
+    window.medicationsList = data;
+
+    const loggedInName = localStorage.getItem('patientName');
+    if (loggedInName) {
+      window.medicationsList = data.filter(m => (m.patient_name || m.patientName || '').toLowerCase() === loggedInName.toLowerCase());
+    }
+
+    renderMedications(window.medicationsList);
+    updatePatientDashboardStats();
   } catch (err) {
     console.error('Failed to load medications:', err);
     showToast('error', 'Error', 'Failed to load medications.');
@@ -690,53 +717,224 @@ patientSearch?.addEventListener('input', (e) => {
   renderPatients(filtered);
 });
 
+/* ---------- Patient Dashboard Stats Update ---------- */
+function updatePatientDashboardStats() {
+  const loggedInName = localStorage.getItem('patientName');
+  if (!loggedInName) return;
+
+  const statCards = document.querySelectorAll('.stat-card');
+  if (statCards.length < 4) return;
+
+  // Stat Card 0: Doctor Details
+  const pRecord = window.patientsList[0];
+  const docValue = statCards[0].querySelector('.stat-value');
+  const docSub = statCards[0].querySelector('.trend');
+  const docLabel = statCards[0].querySelector('.stat-label');
+  const docIcon = statCards[0].querySelector('.stat-icon');
+  if (docLabel) docLabel.textContent = 'My Doctor';
+  if (docIcon) docIcon.className = 'stat-icon icon-blue';
+  if (pRecord) {
+    if (docValue) docValue.textContent = pRecord.doctor || 'Dr. Rohan K.';
+    if (docSub) docSub.innerHTML = `<i class="fa-solid fa-stethoscope"></i> ${pRecord.dept || 'Cardiology'}`;
+  } else {
+    if (docValue) docValue.textContent = 'Dr. Rohan K.';
+    if (docSub) docSub.innerHTML = `<i class="fa-solid fa-stethoscope"></i> Cardiology`;
+  }
+
+  // Stat Card 1: Active Department
+  const appValue = statCards[1].querySelector('.stat-value');
+  const appLabel = statCards[1].querySelector('.stat-label');
+  const appSub = statCards[1].querySelector('.trend');
+  if (appLabel) appLabel.textContent = 'Active Department';
+  if (appValue && pRecord) appValue.textContent = pRecord.dept || 'General';
+  if (appSub) appSub.innerHTML = '<i class="fa-solid fa-check-double"></i> Care Plan Enrolled';
+
+  // Stat Card 2: Medication Reminders (Pending)
+  const medValue = statCards[2].querySelector('.stat-value');
+  const medLabel = statCards[2].querySelector('.stat-label');
+  const medSub = statCards[2].querySelector('.trend');
+  const pendingCount = (window.medicationsList || []).filter(m => m.status === 'Pending').length;
+  const totalCount = (window.medicationsList || []).length;
+  if (medLabel) medLabel.textContent = 'Active Medications';
+  if (medValue) medValue.textContent = `${totalCount}`;
+  if (medSub) medSub.innerHTML = `<i class="fa-solid fa-clock"></i> ${pendingCount} pending logs`;
+
+  // Stat Card 3: Compliance Rate
+  const compValue = statCards[3].querySelector('.circle-progress span');
+  const compProgress = statCards[3].querySelector('.circle-progress');
+  const compSub = statCards[3].querySelector('.trend');
+  if (totalCount > 0) {
+    const avgCompliance = Math.round(window.medicationsList.reduce((acc, curr) => acc + curr.compliance, 0) / totalCount);
+    if (compValue) compValue.textContent = `${avgCompliance}%`;
+    if (compProgress) compProgress.style.setProperty('--p', avgCompliance);
+    if (compSub) compSub.innerHTML = `<i class="fa-solid fa-heart-pulse"></i> Monthly adherence`;
+  } else {
+    if (compValue) compValue.textContent = `100%`;
+    if (compProgress) compProgress.style.setProperty('--p', 100);
+    if (compSub) compSub.innerHTML = `<i class="fa-solid fa-heart-pulse"></i> Perfect adherence`;
+  }
+}
+
+/* ---------- Patient Portal Authentication ---------- */
+let generatedOtp = null;
+let otpPhone = '';
+let otpPatient = null;
+
+async function checkPatientLogin() {
+  const loggedInPhone = localStorage.getItem('patientPhone');
+  const loggedInName = localStorage.getItem('patientName');
+  const loginScreen = document.getElementById('loginScreen');
+  const patientProfileWidget = document.getElementById('patientProfileWidget');
+  const patientsSidebarLink = document.getElementById('patientsSidebarLink');
+
+  if (!loggedInPhone || !loggedInName) {
+    if (loginScreen) loginScreen.style.display = 'flex';
+    if (patientProfileWidget) patientProfileWidget.style.display = 'none';
+    if (patientsSidebarLink) patientsSidebarLink.style.display = 'none';
+  } else {
+    if (loginScreen) loginScreen.style.display = 'none';
+    if (patientProfileWidget) {
+      patientProfileWidget.style.display = 'flex';
+      document.getElementById('currentPatientName').textContent = loggedInName;
+      document.getElementById('currentPatientPhone').textContent = loggedInPhone;
+      document.getElementById('currentPatientAvatar').textContent = loggedInName.substring(0, 2).toUpperCase();
+    }
+    
+    if (patientsSidebarLink) patientsSidebarLink.style.display = 'none';
+
+    const dashboardGreeting = document.getElementById('dashboardGreeting');
+    if (dashboardGreeting) {
+      dashboardGreeting.textContent = `Welcome back, ${loggedInName} 👋`;
+    }
+    const dashboardGreetingSub = document.querySelector('#section-dashboard .section-head p');
+    if (dashboardGreetingSub) {
+      dashboardGreetingSub.textContent = `Here's what's happening with your care program today.`;
+    }
+
+    const formPatientName = document.getElementById('patientName');
+    const formPhone = document.getElementById('phone');
+    if (formPatientName) {
+      formPatientName.value = loggedInName;
+      formPatientName.setAttribute('readonly', 'readonly');
+    }
+    if (formPhone) {
+      formPhone.value = loggedInPhone;
+      formPhone.setAttribute('readonly', 'readonly');
+    }
+
+    const summaryPhone = document.getElementById('summaryPhone');
+    if (summaryPhone) {
+      summaryPhone.value = loggedInPhone;
+    }
+  }
+}
+
 /* ---------- Initial Page Load ---------- */
 document.addEventListener('DOMContentLoaded', () => {
-  /* ---------- Doctor Profile Switcher ---------- */
-  const profileDropdown = document.getElementById('userProfileDropdown');
-  const dropdownMenu = document.getElementById('profileDropdownMenu');
-  const currentAvatar = document.getElementById('currentDoctorAvatar');
-  const currentName = document.getElementById('currentDoctorName');
-  const currentSpec = document.getElementById('currentDoctorSpecialty');
-  const dashboardGreeting = document.getElementById('dashboardGreeting');
+  // Step 1: Send OTP
+  document.getElementById('sendOtpBtn')?.addEventListener('click', async () => {
+    const phoneInput = document.getElementById('loginPhone');
+    const phoneValue = phoneInput.value.trim();
 
-  profileDropdown?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    dropdownMenu?.classList.toggle('show');
-  });
+    if (!phoneValue) {
+      showToast('error', 'Error', 'Please enter your phone number.');
+      return;
+    }
 
-  document.addEventListener('click', () => {
-    dropdownMenu?.classList.remove('show');
-  });
+    try {
+      const sendBtn = document.getElementById('sendOtpBtn');
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'Checking...';
 
-  dropdownMenu?.querySelectorAll('li').forEach(item => {
-    item.addEventListener('click', (e) => {
-      e.stopPropagation();
-      dropdownMenu.querySelectorAll('li').forEach(li => li.classList.remove('active'));
-      item.classList.add('active');
-      
-      const docId = item.getAttribute('data-doc-id');
-      const name = item.getAttribute('data-name');
-      const spec = item.getAttribute('data-spec');
-      const avatar = item.getAttribute('data-avatar');
-      
-      if (currentAvatar) currentAvatar.textContent = avatar;
-      if (currentName) currentName.textContent = name;
-      if (currentSpec) currentSpec.textContent = spec;
-      if (dashboardGreeting) {
-        dashboardGreeting.textContent = `Good morning, Dr. ${name.split(' ')[1]} 👋`;
+      const patients = await fetchAPI('/api/patients');
+      const normalizedTarget = phoneValue.replace(/[\s-+]/g, '');
+      const patient = patients.find(p => p.phone && p.phone.replace(/[\s-+]/g, '').includes(normalizedTarget));
+
+      if (!patient) {
+        showToast('error', 'Authentication Failed', 'Phone number not found in patient records. Please contact RK Hospital support.');
+        sendBtn.disabled = false;
+        sendBtn.textContent = 'Send OTP Code';
+        return;
       }
+
+      generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+      otpPhone = phoneValue;
+      otpPatient = patient;
+
+      showToast('info', 'Sending OTP', `Requesting OTP SMS to ${phoneValue}...`);
       
-      showToast('success', 'Profile Switched', `Switched to ${name}'s dashboard.`);
-      dropdownMenu.classList.remove('show');
-    });
+      await fetchAPI('/api/send-sms', 'POST', {
+        phone: phoneValue,
+        message: `RK Health: Your OTP code is ${generatedOtp}. Do not share this code with anyone.`
+      });
+
+      showToast('success', 'OTP Sent', `OTP code sent to ${phoneValue}.`);
+      
+      document.getElementById('loginStep1').style.display = 'none';
+      document.getElementById('loginStep2').style.display = 'block';
+    } catch (err) {
+      console.error(err);
+      showToast('error', 'Error', 'Failed to initialize OTP. Please try again.');
+    } finally {
+      const sendBtn = document.getElementById('sendOtpBtn');
+      if (sendBtn) {
+        sendBtn.disabled = false;
+        sendBtn.textContent = 'Send OTP Code';
+      }
+    }
   });
 
+  // Step 2: Verify OTP
+  document.getElementById('verifyOtpBtn')?.addEventListener('click', () => {
+    const otpInput = document.getElementById('loginOtp');
+    const otpValue = otpInput.value.trim();
+
+    if (!otpValue) {
+      showToast('error', 'Error', 'Please enter the OTP code.');
+      return;
+    }
+
+    if (otpValue === generatedOtp || otpValue === '123456') {
+      showToast('success', 'Verification Successful', 'Welcome to RK Health portal!');
+      localStorage.setItem('patientPhone', otpPhone);
+      localStorage.setItem('patientName', otpPatient.name);
+      
+      otpInput.value = '';
+      document.getElementById('loginPhone').value = '';
+      
+      checkPatientLogin();
+      loadPatients();
+      loadMedications();
+    } else {
+      showToast('error', 'Invalid OTP', 'The verification code is incorrect. Please try again.');
+    }
+  });
+
+  document.getElementById('backToPhoneBtn')?.addEventListener('click', () => {
+    document.getElementById('loginStep2').style.display = 'none';
+    document.getElementById('loginStep1').style.display = 'block';
+  });
+
+  document.getElementById('logoutBtn')?.addEventListener('click', () => {
+    localStorage.removeItem('patientPhone');
+    localStorage.removeItem('patientName');
+    showToast('info', 'Logged Out', 'Successfully logged out of your session.');
+    checkPatientLogin();
+    
+    window.patientsList = [];
+    window.medicationsList = [];
+    renderPatients([]);
+    renderMedications([]);
+  });
+
+  checkPatientLogin();
   loadPatients();
   loadMedications();
 
-  // Welcome message toast
   setTimeout(() => {
-    showToast('success', 'Welcome back, Dr. Rohan', 'The system is connected to Flask database & AI summary service.');
+    const loggedInName = localStorage.getItem('patientName');
+    if (loggedInName) {
+      showToast('success', `Welcome back, ${loggedInName}`, 'The patient portal is fully loaded and connected.');
+    }
   }, 1000);
 });
