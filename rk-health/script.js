@@ -283,13 +283,14 @@ function renderMedications(meds) {
   medGrid.innerHTML = meds.map(m => `
     <article class="med-card fade-in">
       <div class="med-head">
-        <div style="display:flex; gap:12px; align-items:center;">
-          <div class="med-icon"><i class="fa-solid fa-capsules"></i></div>
-          <div class="med-title">
-            <h4>${escapeHTML(m.name)} ${escapeHTML(m.dose)}</h4>
-            <span>${escapeHTML(m.freq)}</span>
-            <div class="med-patient-tag" style="margin-top: 4px; font-size: 11px; color: var(--primary); font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" data-patient-name="${escapeHTML(m.patient_name || m.patientName || 'Unknown')}" onclick="filterMedicationsByPatient(this.dataset.patientName)" title="Click to filter by this patient">
-              <i class="fa-solid fa-user"></i> ${escapeHTML(m.patient_name || m.patientName || 'Unknown')}
+        <div style="display:flex; gap:12px; align-items:flex-start; flex:1; min-width:0;">
+          <div class="med-icon" style="margin-top: 2px;"><i class="fa-solid fa-capsules"></i></div>
+          <div class="med-title" style="flex:1; min-width:0; display:flex; flex-direction:column; gap:2px;">
+            <h4 style="font-size: 15px; font-weight: 600; color: var(--text);">${escapeHTML(m.name)} ${escapeHTML(m.dose)}</h4>
+            <span style="font-size: 12px; color: var(--muted);">${escapeHTML(m.freq)}</span>
+            <div class="med-patient-tag" style="margin-top: 6px; font-size: 11px; color: var(--primary); font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; background: var(--primary-soft); padding: 3px 8px; border-radius: 6px; width: fit-content; transition: var(--transition);" data-patient-name="${escapeHTML(m.patient_name || m.patientName || 'Unknown')}" onclick="filterMedicationsByPatient(this.dataset.patientName)" title="Click to filter by this patient">
+              <i class="fa-solid fa-user" style="font-size: 10px;"></i>
+              <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px;">${escapeHTML(m.patient_name || m.patientName || 'Unknown')}</span>
             </div>
           </div>
         </div>
