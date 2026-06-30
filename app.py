@@ -751,7 +751,7 @@ def dispatch_email(email, subject, message):
             msg['Subject'] = subject
             msg.attach(MIMEText(message, 'plain'))
             
-            with smtplib.SMTP(smtp_server, int(smtp_port)) as server:
+            with smtplib.SMTP(smtp_server, int(smtp_port), timeout=5) as server:
                 server.starttls()
                 server.login(smtp_user, smtp_password)
                 server.send_message(msg)
