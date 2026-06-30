@@ -42,7 +42,9 @@ async function fetchAPI(endpoint, method = 'GET', body = null) {
   if (useAppsScript) {
     if (method === 'GET') {
       const action = endpoint.split('/').pop(); // 'patients', 'medications', or 'appointments'
-      const response = await fetch(`${APPS_SCRIPT_URL}?action=${action}`);
+      const response = await fetch(`${APPS_SCRIPT_URL}?action=${action}`, {
+        credentials: 'omit'
+      });
       const json = await response.json();
       API_CACHE[endpoint] = { timestamp: Date.now(), data: json };
       return json;
@@ -81,6 +83,7 @@ async function fetchAPI(endpoint, method = 'GET', body = null) {
       const response = await fetch(APPS_SCRIPT_URL, {
         method: 'POST',
         redirect: 'follow',
+        credentials: 'omit',
         body: JSON.stringify(payload)
       });
       return response.json();
@@ -385,42 +388,52 @@ window.clearMedicationFilter = function () {
 
 const REMINDER_CLASS = { Sent: 'chip-success', Pending: 'chip-warning', Missed: 'chip-danger' };
 const tbody = document.getElementById('patientsTbody');
-
 function avatarInitials(name) {
-  return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  if (!name || typeof name !== 'string') return 'PA';
+  return name.split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 2).toUpperCase();
 }
 
 function renderPatients(rows) {
   if (!tbody) return;
-  tbody.innerHTML = rows.map(p => `
+  tbody.innerHTML = (rows || []).filter(Boolean).map(p => {
+    const id = p.id || 'N/A';
+    const name = p.name || 'Unknown Patient';
+    const date = p.date || 'No Date';
+    const doctor = p.doctor || 'No Doctor';
+    const med = p.med || 'No Medication';
+    const reminder = p.reminder_status || p.reminder || 'Pending';
+    const compliance = p.compliance || 0;
+
+    return `
     <tr>
-      <td><strong>${p.id}</strong></td>
+      <td><strong>${escapeHTML(id)}</strong></td>
       <td>
         <div class="patient-cell">
-          <div class="avatar">${escapeHTML(avatarInitials(p.name))}</div>
-          <span>${escapeHTML(p.name)}</span>
+          <div class="avatar">${escapeHTML(avatarInitials(name))}</div>
+          <span>${escapeHTML(name)}</span>
         </div>
       </td>
-      <td>${escapeHTML(p.date)}</td>
-      <td>${escapeHTML(p.doctor)}</td>
-      <td>${escapeHTML(p.med)}</td>
-      <td><span class="chip ${REMINDER_CLASS[p.reminder] || 'chip-warning'}">${escapeHTML(p.reminder)}</span></td>
+      <td>${escapeHTML(date)}</td>
+      <td>${escapeHTML(doctor)}</td>
+      <td>${escapeHTML(med)}</td>
+      <td><span class="chip ${REMINDER_CLASS[reminder] || 'chip-warning'}">${escapeHTML(reminder)}</span></td>
       <td>
         <div style="display:flex; align-items:center; gap:8px;">
-          <div class="bar" style="flex:1; min-width:60px;"><div class="bar-fill" style="width:${p.compliance}%"></div></div>
-          <strong style="font-size:12px;">${p.compliance}%</strong>
+          <div class="bar" style="flex:1; min-width:60px;"><div class="bar-fill" style="width:${compliance}%"></div></div>
+          <strong style="font-size:12px;">${compliance}%</strong>
         </div>
       </td>
       <td>
         <div class="row-actions">
-          <button class="icon-btn" title="View Report" onclick="viewPatientReport('${p.id}', '${escapeHTML(p.name).replace(/'/g, "\\'")}')"><i class="fa-regular fa-eye"></i></button>
-          <button class="icon-btn" title="Edit Patient" onclick="editPatient('${p.id}', '${escapeHTML(p.name).replace(/'/g, "\\'")}')"><i class="fa-solid fa-pen"></i></button>
-          <button class="icon-btn" title="Print" onclick="viewPatientReport('${p.id}', '${escapeHTML(p.name).replace(/'/g, "\\'")}', true)"><i class="fa-solid fa-print"></i></button>
-          <button class="icon-btn" title="Delete Patient" onclick="showToast('warning','Deleted','Patient ${escapeHTML(p.name).replace(/'/g, "\\'")} removed')"><i class="fa-solid fa-trash"></i></button>
+          <button class="icon-btn" title="View Report" onclick="viewPatientReport('${escapeHTML(id)}', '${escapeHTML(name).replace(/'/g, "\\'")}')"><i class="fa-regular fa-eye"></i></button>
+          <button class="icon-btn" title="Edit Patient" onclick="editPatient('${escapeHTML(id)}', '${escapeHTML(name).replace(/'/g, "\\'")}')"><i class="fa-solid fa-pen"></i></button>
+          <button class="icon-btn" title="Print" onclick="viewPatientReport('${escapeHTML(id)}', '${escapeHTML(name).replace(/'/g, "\\'")}', true)"><i class="fa-solid fa-print"></i></button>
+          <button class="icon-btn" title="Delete Patient" onclick="showToast('warning','Deleted','Patient ${escapeHTML(name).replace(/'/g, "\\'")} removed')"><i class="fa-solid fa-trash"></i></button>
         </div>
       </td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
 }
 
 /* ---------- Patient Action Handlers ---------- */
