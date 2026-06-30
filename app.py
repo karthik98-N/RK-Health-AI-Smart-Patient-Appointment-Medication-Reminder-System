@@ -664,6 +664,22 @@ def generate_ai_summary():
     except Exception as db_err:
         print("Database error in generate_ai_summary meds lookup:", db_err)
         
+    # Fallback: If no medications found locally (e.g. running in Sheets database mode), fetch from Google Sheet
+    if not meds_list:
+        apps_script_url = get_apps_script_url()
+        if apps_script_url:
+            try:
+                import requests
+                print(f"[AI SUMMARY] Fetching medications from Google Sheets fallback for {patient_name}...")
+                response = requests.get(f"{apps_script_url}?action=medications", timeout=10)
+                if response.status_code == 200:
+                    all_meds = response.json()
+                    for m in all_meds:
+                        if m.get('patient_name', '').lower() == patient_name.lower():
+                            meds_list.append(f"{m.get('name')} {m.get('dose')} ({m.get('freq')})")
+            except Exception as e:
+                print("Failed to fetch meds from Apps Script for AI summary:", e)
+        
     medications_info = ", ".join(meds_list) if meds_list else "Follow doctor guidelines."
     
     try:
@@ -755,17 +771,21 @@ def dispatch_email(email, subject, message):
                 server.starttls()
                 server.login(smtp_user, smtp_password)
                 server.send_message(msg)
-            print(f"[EMAIL SUCCESS] Dispatched to {email} via SMTP.")
-            return True, "Email sent successfully via custom SMTP."
+            print(f"[EMAIL SUCCESS] Dispatched to {email} via SMTP (Sender: {smtp_user}).")
+            return True, f"Email sent successfully via custom SMTP (Sender: {smtp_user})."
+        except smtplib.SMTPAuthenticationError as auth_err:
+            print(f"[SMTP AUTH ERROR] Failed to authenticate SMTP user '{smtp_user}'. Please verify your credentials or ensure a valid 16-character App Password is set in your .env file: {auth_err}")
+            print("[EMAIL FALLBACK] Falling back to Apps Script/Mock...")
         except Exception as e:
-            print("SMTP error, falling back to Apps Script/Mock:", e)
+            print(f"[SMTP ERROR] Connection failed on {smtp_server}:{smtp_port}. This is common if outbound port 587 is blocked by your hosting provider (e.g. Render): {e}")
+            print("[EMAIL FALLBACK] Falling back to Apps Script/Mock...")
             
     # Fallback Step 1: Send via Google Apps Script Web App (if configured)
     apps_script_url = get_apps_script_url()
     if apps_script_url:
         try:
             import requests
-            print(f"[EMAIL] Attempting to dispatch email via Google Apps Script: {apps_script_url}")
+            print(f"[EMAIL FALLBACK] Attempting to dispatch email via Google Apps Script: {apps_script_url}")
             response = requests.post(apps_script_url, json={
                 'action': 'sendEmail',
                 'email': email,
@@ -775,14 +795,14 @@ def dispatch_email(email, subject, message):
             if response.status_code == 200:
                 res_json = response.json()
                 if not res_json.get('error') and res_json.get('success') != False:
-                    print(f"[EMAIL SUCCESS] Dispatched to {email} via Google Apps Script.")
-                    return True, "Email sent successfully via Google Apps Script."
+                    print(f"[EMAIL SUCCESS] Dispatched to {email} via Google Apps Script fallback. Note: Sender is determined by the Google Account that deployed this Apps Script.")
+                    return True, "Email sent successfully via Google Apps Script fallback."
                 else:
-                    print("Google Apps Script email error response:", res_json)
+                    print("[EMAIL FALLBACK ERROR] Google Apps Script email error response:", res_json)
             else:
-                print(f"Google Apps Script response status code: {response.status_code}")
+                print(f"[EMAIL FALLBACK ERROR] Google Apps Script returned status code: {response.status_code}")
         except Exception as script_err:
-            print("Failed to dispatch email via Google Apps Script:", script_err)
+            print("[EMAIL FALLBACK ERROR] Failed to dispatch email via Google Apps Script:", script_err)
             
     # Fallback Step 2: Mock mode (print to console log)
     print(f"[EMAIL MOCK] To: {email} | Subject: {subject} | Message: {message}")

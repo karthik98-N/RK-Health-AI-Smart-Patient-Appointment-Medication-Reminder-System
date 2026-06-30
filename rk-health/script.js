@@ -36,7 +36,9 @@ async function fetchAPI(endpoint, method = 'GET', body = null) {
   }
 
   let result;
-  const useAppsScript = (typeof USE_LOCAL_API !== 'undefined' && USE_LOCAL_API) ? false : (APPS_SCRIPT_URL && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1');
+  // Always use Flask server for AI summary since Apps Script lacks Groq/Llama AI integration
+  const isAISummary = endpoint.includes('/generate-summary');
+  const useAppsScript = isAISummary ? false : ((typeof USE_LOCAL_API !== 'undefined' && USE_LOCAL_API) ? false : (APPS_SCRIPT_URL && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'));
   if (useAppsScript) {
     if (method === 'GET') {
       const action = endpoint.split('/').pop(); // 'patients', 'medications', or 'appointments'
