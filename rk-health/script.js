@@ -37,8 +37,7 @@ async function fetchAPI(endpoint, method = 'GET', body = null) {
 
   let result;
   // Always use Flask server for AI summary and SMS scheduling since Apps Script lacks these integrations
-  const isBypassed = endpoint.includes('/generate-summary') || endpoint.includes('/schedule-sms');
-  const useAppsScript = isBypassed ? false : ((typeof USE_LOCAL_API !== 'undefined' && USE_LOCAL_API) ? false : (APPS_SCRIPT_URL && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'));
+  const useAppsScript = false;
   if (useAppsScript) {
     if (method === 'GET') {
       const action = endpoint.split('/').pop(); // 'patients', 'medications', or 'appointments'

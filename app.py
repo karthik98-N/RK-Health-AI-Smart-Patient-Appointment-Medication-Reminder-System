@@ -1042,6 +1042,72 @@ def send_email():
         'message': msg
     })
 
+@app.route('/api/<path:subpath>', methods=['GET', 'POST', 'PUT', 'DELETE'])
+def api_proxy(subpath):
+    """Wildcard proxy to route frontend API requests to Google Apps Script from the server side."""
+    # Exclude native routes that should be handled directly
+    if subpath in ['schedule-sms', 'scheduled-sms', 'send-sms', 'send-email']:
+        return jsonify({'error': True, 'message': 'Reserved route requested.'}), 400
+
+    apps_script_url = get_apps_script_url()
+    if not apps_script_url:
+        return jsonify({'error': True, 'message': 'APPS_SCRIPT_URL not configured.'}), 500
+
+    method = request.method
+    import requests
+
+    try:
+        if method == 'GET':
+            action = subpath.split('/')[-1]
+            target_url = f"{apps_script_url}?action={action}"
+            res = requests.get(target_url, timeout=30)
+            return (res.text, res.status_code, {'Content-Type': 'application/json'})
+
+        elif method in ['POST', 'PUT', 'DELETE']:
+            endpoint = f"/api/{subpath}"
+            body = request.json or {}
+            payload = body.copy()
+
+            action = ""
+            if endpoint == '/api/appointments':
+                action = 'addAppointment'
+            elif endpoint == '/api/medications':
+                action = 'addMedication'
+            elif '/taken' in endpoint:
+                action = 'medicationTaken'
+                # Path: /api/medications/<id>/taken
+                parts = endpoint.split('/')
+                if len(parts) >= 4:
+                    payload['id'] = parts[3]
+            elif method == 'DELETE' and endpoint.startswith('/api/medications/'):
+                action = 'deleteMedication'
+                payload['id'] = endpoint.split('/')[-1]
+            elif method == 'POST' and endpoint.startswith('/api/medications/') and '/taken' not in endpoint:
+                action = 'updateMedication'
+                payload['id'] = endpoint.split('/')[-1]
+            elif endpoint == '/api/generate-summary':
+                action = 'generateSummary'
+            elif endpoint == '/api/send-sms':
+                action = 'sendSMS'
+            elif endpoint == '/api/send-email':
+                action = 'sendEmail'
+            elif endpoint.startswith('/api/patients/'):
+                action = 'updatePatient'
+                payload['id'] = endpoint.split('/')[-1]
+            elif endpoint == '/api/patients':
+                action = 'getOrCreatePatient'
+
+            payload['action'] = action
+
+            res = requests.post(apps_script_url, json=payload, headers={'Content-Type': 'application/json'}, timeout=30)
+            return (res.text, res.status_code, {'Content-Type': 'application/json'})
+
+    except Exception as e:
+        print(f"Proxy route error for {subpath}:", e)
+        return jsonify({'error': True, 'message': str(e)}), 500
+
+    return jsonify({'error': True, 'message': f'Unsupported method {method}'}), 405
+
 if __name__ == '__main__':
     port = int(os.getenv("PORT", os.getenv("FLASK_PORT", 5000)))
     debug = os.getenv("FLASK_DEBUG", "True").lower() == "true"
