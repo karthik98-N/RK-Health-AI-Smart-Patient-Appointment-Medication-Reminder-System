@@ -67,6 +67,8 @@ async function fetchAPI(endpoint, method = 'GET', body = null) {
         action = 'generateSummary';
       } else if (endpoint === '/api/send-sms') {
         action = 'sendSMS';
+      } else if (endpoint === '/api/send-email') {
+        action = 'sendEmail';
       } else if (endpoint.startsWith('/api/patients/')) {
         action = 'updatePatient';
         payload.id = endpoint.split('/').pop();
@@ -823,18 +825,35 @@ document.querySelector('#section-medications .btn-primary')?.addEventListener('c
     medPatientSelect.innerHTML += '<option value="NEW_PATIENT">-- Add New Patient --</option>';
   }
   
+  let names = [];
   if (window.patientsList && window.patientsList.length > 0) {
-    const names = [...new Set(window.patientsList.map(p => p.name))];
-    names.forEach(name => {
-      const opt = document.createElement('option');
-      opt.value = name;
-      opt.textContent = name;
-      medPatientSelect.appendChild(opt);
-    });
-    // Auto-select if patient login is active and there is a matching record
-    if (ENABLE_PATIENT_LOGIN && names.length === 1) {
-      medPatientSelect.value = names[0];
-      medPhoneInput.value = window.patientsList[0].phone || '';
+    names = [...new Set(window.patientsList.map(p => p.name))];
+  }
+  
+  if (ENABLE_PATIENT_LOGIN) {
+    const loggedInName = localStorage.getItem('patientName');
+    if (loggedInName && !names.includes(loggedInName)) {
+      names.push(loggedInName);
+    }
+  }
+
+  names.forEach(name => {
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    medPatientSelect.appendChild(opt);
+  });
+
+  if (ENABLE_PATIENT_LOGIN) {
+    const loggedInName = localStorage.getItem('patientName');
+    if (loggedInName) {
+      medPatientSelect.value = loggedInName;
+      const loggedPhone = localStorage.getItem('patientPhone');
+      if (loggedPhone && loggedPhone !== 'N/A' && loggedPhone !== 'null') {
+        medPhoneInput.value = loggedPhone;
+      } else if (window.patientsList && window.patientsList.length > 0) {
+        medPhoneInput.value = window.patientsList[0].phone || '';
+      }
     }
   }
 
