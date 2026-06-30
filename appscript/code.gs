@@ -14,6 +14,29 @@ function getSheet(name) {
   if (!sheet) {
     sheet = ss.insertSheet(name);
   }
+  
+  let headers = [];
+  if (name === "patients") {
+    headers = ["id", "name", "phone", "age", "gender", "compliance", "reminder_status", "email"];
+  } else if (name === "appointments") {
+    headers = ["id", "patient_id", "patient_name", "doctor", "department", "date", "time", "visit", "priority", "symptoms", "calendar_link", "created_at"];
+  } else if (name === "medications") {
+    headers = ["id", "patient_name", "name", "dose", "freq", "schedule", "status", "compliance", "next", "phone", "created_at"];
+  }
+  
+  if (headers.length > 0) {
+    const lastRow = sheet.getLastRow();
+    if (lastRow === 0) {
+      sheet.appendRow(headers);
+    } else {
+      const firstCell = sheet.getRange(1, 1).getValue().toString().toLowerCase().trim();
+      if (firstCell !== "id") {
+        sheet.insertRowBefore(1);
+        sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      }
+    }
+  }
+  
   return sheet;
 }
 
