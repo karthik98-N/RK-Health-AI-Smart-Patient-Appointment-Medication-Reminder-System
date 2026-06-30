@@ -70,6 +70,8 @@ async function fetchAPI(endpoint, method = 'GET', body = null) {
       } else if (endpoint.startsWith('/api/patients/')) {
         action = 'updatePatient';
         payload.id = endpoint.split('/').pop();
+      } else if (endpoint === '/api/patients') {
+        action = 'getOrCreatePatient';
       }
 
       payload.action = action;

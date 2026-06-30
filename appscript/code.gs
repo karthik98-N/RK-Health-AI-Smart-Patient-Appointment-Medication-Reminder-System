@@ -49,7 +49,7 @@ function doPost(e) {
     const action = data.action;
     
     // Invalidate caches on mutation
-    if (["addAppointment", "addMedication", "medicationTaken", "deleteMedication", "updatePatient", "updateMedication"].includes(action)) {
+    if (["addAppointment", "addMedication", "medicationTaken", "deleteMedication", "updatePatient", "updateMedication", "getOrCreatePatient"].includes(action)) {
       try {
         const cache = CacheService.getScriptCache();
         cache.removeAll(["RK_HEALTH_patients", "RK_HEALTH_appointments", "RK_HEALTH_medications"]);
@@ -72,6 +72,8 @@ function doPost(e) {
       return responseSuccess(sendEmailAction(data));
     } else if (action === "sendSMS") {
       return responseSuccess(sendSMSAction(data));
+    } else if (action === "getOrCreatePatient") {
+      return responseSuccess(getOrCreatePatient(data));
     } else {
       return responseError("Invalid POST action requested.");
     }
@@ -380,4 +382,103 @@ function sendSMSAction(data) {
   }
   
   return { success: true, message: "SMS processed (No linked email found to forward copy)." };
+}
+
+/**
+ * Finds or registers a patient by email or phone dynamically.
+ */
+function getOrCreatePatient(data) {
+  const email = data.email ? data.email.trim().toLowerCase() : "";
+  const phone = data.phone ? data.phone.toString().replace(/\D/g, "") : "";
+  let name = data.name ? data.name.trim() : "";
+
+  const sheet = getSheet("patients");
+  const values = sheet.getDataRange().getValues();
+  const headers = values[0].map(h => h.toString().toLowerCase().trim());
+
+  // Find column indices
+  const idIdx = headers.indexOf("id");
+  const nameIdx = headers.indexOf("name");
+  const phoneIdx = headers.indexOf("phone");
+  const emailIdx = headers.indexOf("email");
+  const ageIdx = headers.indexOf("age");
+  const genderIdx = headers.indexOf("gender");
+  const complianceIdx = headers.indexOf("compliance");
+  const statusIdx = headers.indexOf("reminder_status") !== -1 ? headers.indexOf("reminder_status") : headers.indexOf("status");
+
+  // Search existing patients
+  for (let i = 1; i < values.length; i++) {
+    const row = values[i];
+    let match = false;
+
+    if (email && emailIdx !== -1 && row[emailIdx] && row[emailIdx].toString().toLowerCase().trim() === email) {
+      match = true;
+    } else if (phone && phoneIdx !== -1 && row[phoneIdx]) {
+      const rowPhone = row[phoneIdx].toString().replace(/\D/g, "");
+      if (phone.includes(rowPhone) || rowPhone.includes(phone)) {
+        match = true;
+      }
+    }
+
+    if (match) {
+      return {
+        success: true,
+        id: idIdx !== -1 ? row[idIdx] : "",
+        name: nameIdx !== -1 ? row[nameIdx] : "",
+        phone: phoneIdx !== -1 ? row[phoneIdx] : "",
+        email: emailIdx !== -1 ? row[emailIdx] : "",
+        message: "Patient already exists."
+      };
+    }
+  }
+
+  // Generate new patient ID
+  const patientId = "RK-" + Math.floor(1000 + Math.random() * 9000);
+  if (!name) {
+    if (email) {
+      name = email.split('@')[0].replace('.', ' ').replace(/\b\w/g, c => c.toUpperCase());
+    } else {
+      const cleanDigits = phone.slice(-4);
+      name = "Patient - " + (cleanDigits || "New");
+    }
+  }
+
+  // Construct new row matching spreadsheet headers order
+  const newRow = new Array(headers.length || 8).fill("");
+  
+  // Set defaults for headers if empty
+  const finalHeaders = headers.length > 0 ? headers : ["id", "name", "phone", "email", "age", "gender", "compliance", "status"];
+  const finalIdIdx = idIdx !== -1 ? idIdx : 0;
+  const finalNameIdx = nameIdx !== -1 ? nameIdx : 1;
+  const finalPhoneIdx = phoneIdx !== -1 ? phoneIdx : 2;
+  const finalEmailIdx = emailIdx !== -1 ? emailIdx : 3;
+  const finalAgeIdx = ageIdx !== -1 ? ageIdx : 4;
+  const finalGenderIdx = genderIdx !== -1 ? genderIdx : 5;
+  const finalComplianceIdx = complianceIdx !== -1 ? complianceIdx : 6;
+  const finalStatusIdx = statusIdx !== -1 ? statusIdx : 7;
+
+  // Make sure headers are in sheet if we created it new
+  if (values.length === 0 || values[0].length === 0) {
+    sheet.appendRow(finalHeaders);
+  }
+
+  newRow[finalIdIdx] = patientId;
+  newRow[finalNameIdx] = name;
+  newRow[finalPhoneIdx] = data.phone || "";
+  newRow[finalEmailIdx] = data.email || "";
+  newRow[finalAgeIdx] = 35;
+  newRow[finalGenderIdx] = "Female";
+  newRow[finalComplianceIdx] = 100;
+  newRow[finalStatusIdx] = "Pending";
+
+  sheet.appendRow(newRow);
+
+  return {
+    success: true,
+    id: patientId,
+    name: name,
+    phone: data.phone || "",
+    email: data.email || "",
+    message: "New patient registered successfully."
+  };
 }
