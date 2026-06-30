@@ -189,6 +189,17 @@ async function loadPatients() {
     const loggedInEmail = localStorage.getItem('patientEmail');
     if (ENABLE_PATIENT_LOGIN && loggedInEmail) {
       window.patientsList = data.filter(p => p.email && p.email.toLowerCase() === loggedInEmail.toLowerCase());
+      if (window.patientsList.length > 0) {
+        const dbPatient = window.patientsList[0];
+        const localName = localStorage.getItem('patientName');
+        if (dbPatient.name && dbPatient.name !== localName) {
+          localStorage.setItem('patientName', dbPatient.name);
+          if (dbPatient.phone && dbPatient.phone !== 'N/A' && dbPatient.phone !== 'null') {
+            localStorage.setItem('patientPhone', dbPatient.phone);
+          }
+          checkPatientLogin();
+        }
+      }
     }
 
     renderPatients(window.patientsList);
@@ -803,7 +814,11 @@ document.querySelector('#section-medications .btn-primary')?.addEventListener('c
   medNewPatientInput.style.display = 'none';
   medNewPatientInput.removeAttribute('required');
 
-  medPatientSelect.innerHTML = '<option value="">Select a patient...</option><option value="NEW_PATIENT">-- Add New Patient --</option>';
+  medPatientSelect.innerHTML = '<option value="">Select a patient...</option>';
+  if (!ENABLE_PATIENT_LOGIN) {
+    medPatientSelect.innerHTML += '<option value="NEW_PATIENT">-- Add New Patient --</option>';
+  }
+  
   if (window.patientsList && window.patientsList.length > 0) {
     const names = [...new Set(window.patientsList.map(p => p.name))];
     names.forEach(name => {
@@ -812,6 +827,11 @@ document.querySelector('#section-medications .btn-primary')?.addEventListener('c
       opt.textContent = name;
       medPatientSelect.appendChild(opt);
     });
+    // Auto-select if patient login is active and there is a matching record
+    if (ENABLE_PATIENT_LOGIN && names.length === 1) {
+      medPatientSelect.value = names[0];
+      medPhoneInput.value = window.patientsList[0].phone || '';
+    }
   }
 
   addMedModal?.classList.add('show');

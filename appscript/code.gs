@@ -299,11 +299,7 @@ function updatePatient(patientId, data) {
  */
 function responseSuccess(data) {
   return ContentService.createTextOutput(JSON.stringify(data))
-    .setMimeType(ContentService.MimeType.JSON)
-    .setHeaders({
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST"
-    });
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 /**
@@ -311,11 +307,7 @@ function responseSuccess(data) {
  */
 function responseError(msg) {
   return ContentService.createTextOutput(JSON.stringify({ error: true, message: msg }))
-    .setMimeType(ContentService.MimeType.JSON)
-    .setHeaders({
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST"
-    });
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 /**
