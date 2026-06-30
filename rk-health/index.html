@@ -10,6 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <link rel="stylesheet" href="./style.css">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 
@@ -32,11 +33,11 @@
   </div>
 
   <div class="header-right">
-    <button class="icon-btn has-badge" aria-label="Notifications">
+    <button class="icon-btn has-badge" aria-label="Notifications" id="headerNotificationBtn">
       <i class="fa-regular fa-bell"></i>
       <span class="badge">4</span>
     </button>
-    <button class="icon-btn" aria-label="Settings"><i class="fa-solid fa-gear"></i></button>
+    <button class="icon-btn" aria-label="Settings" id="headerSettingsBtn"><i class="fa-solid fa-gear"></i></button>
     <div class="user-profile" id="patientProfileWidget">
       <div class="avatar" id="currentPatientAvatar">PA</div>
       <div class="user-meta">
@@ -64,6 +65,13 @@
         <input type="email" id="loginEmail" placeholder="e.g., patient@example.com" required style="width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg);" />
       </div>
       <button class="btn btn-primary" id="sendOtpBtn" style="width: 100%; margin-top: 16px; justify-content: center;">Send OTP Code</button>
+      <div style="text-align: center; margin: 16px 0; color: var(--text-muted); font-size: 13px; position: relative;">
+        <span style="background: var(--card-bg); padding: 0 10px; z-index: 1; position: relative; color: #888;">or</span>
+        <div style="position: absolute; top: 50%; left: 0; right: 0; border-top: 1px solid var(--border); z-index: 0;"></div>
+      </div>
+      <div style="display: flex; justify-content: center; width: 100%;">
+        <div id="googleSignInButton"></div>
+      </div>
     </div>
 
     <!-- Step 2: Verification Code -->
@@ -180,38 +188,7 @@
             <button class="btn-ghost">View all</button>
           </header>
           <ul class="timeline">
-            <li>
-              <span class="dot dot-blue"></span>
-              <div>
-                <strong>Appointment booked</strong>
-                <p class="muted">Anita Sharma — Cardiology consult, 10:30 AM</p>
-              </div>
-              <time>2m ago</time>
-            </li>
-            <li>
-              <span class="dot dot-green"></span>
-              <div>
-                <strong>Medication reminder sent</strong>
-                <p class="muted">Metformin 500mg — Ramesh Patel</p>
-              </div>
-              <time>14m ago</time>
-            </li>
-            <li>
-              <span class="dot dot-orange"></span>
-              <div>
-                <strong>Health report generated</strong>
-                <p class="muted">Monthly summary — Priya Verma</p>
-              </div>
-              <time>1h ago</time>
-            </li>
-            <li>
-              <span class="dot dot-red"></span>
-              <div>
-                <strong>SMS delivered</strong>
-                <p class="muted">Follow-up reminder — 22 patients</p>
-              </div>
-              <time>3h ago</time>
-            </li>
+            <!-- Dynamically populated by script.js -->
           </ul>
         </article>
       </div>
@@ -288,9 +265,34 @@
           <div class="form-actions field-full">
             <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Appointment</button>
             <button type="reset" class="btn btn-outline"><i class="fa-solid fa-rotate-left"></i> Reset</button>
-            <button type="button" class="btn btn-secondary" id="genSummaryBtn"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate AI Summary</button>
           </div>
         </form>
+      </article>
+
+      <div class="section-head mt" style="margin-top: 32px;">
+        <div>
+          <h2>Appointment History</h2>
+          <p class="muted">Your past and upcoming appointments.</p>
+        </div>
+      </div>
+      <article class="card fade-in">
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Time</th>
+                <th>Doctor</th>
+                <th>Department</th>
+                <th>Visit</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="appointmentsListBody">
+              <tr><td colspan="6" style="text-align:center; padding: 20px;" class="muted">No appointments found.</td></tr>
+            </tbody>
+          </table>
+        </div>
       </article>
     </section>
 
@@ -301,7 +303,51 @@
           <h2>Medication Management</h2>
           <p class="muted">Track adherence and reminders.</p>
         </div>
-        <button class="btn btn-primary"><i class="fa-solid fa-plus"></i> Add Medication</button>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <button class="btn btn-outline" id="openDoctorNoteBtn"><i class="fa-solid fa-note-medical"></i> Doctor Note</button>
+          <button class="btn btn-primary"><i class="fa-solid fa-plus"></i> Add Medication</button>
+        </div>
+      </div>
+
+      <!-- Doctor Notes Panel (inline, slides in below header) -->
+      <div id="doctorNotesPanel" style="display:none;">
+        <article class="card fade-in" style="margin-bottom: 20px; border-left: 4px solid var(--primary);">
+          <div class="card-title" style="margin-bottom: 16px;">
+            <i class="fa-solid fa-note-medical icon-blue-soft"></i>
+            <h3>Doctor Notes</h3>
+            <button class="icon-btn" id="closeDoctorNoteBtn" style="margin-left:auto;" title="Close"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+
+          <!-- Write New Note -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+            <div class="field">
+              <label for="notePatientInput">Patient Name</label>
+              <input type="text" id="notePatientInput" placeholder="e.g., Neelishipmani" />
+            </div>
+            <div class="field">
+              <label for="noteDoctorInput">Doctor Name</label>
+              <input type="text" id="noteDoctorInput" placeholder="e.g., Dr. Rohan Kumar" />
+            </div>
+          </div>
+          <div class="field" style="margin-bottom: 12px;">
+            <label for="noteTagSelect">Note Type</label>
+            <select id="noteTagSelect">
+              <option value="Prescription">📋 Prescription</option>
+              <option value="Follow-up">🔁 Follow-up</option>
+              <option value="Observation">🔍 Observation</option>
+              <option value="Warning">⚠️ Warning</option>
+              <option value="General">💬 General</option>
+            </select>
+          </div>
+          <div class="field" style="margin-bottom: 16px;">
+            <label for="noteTextarea">Note</label>
+            <textarea id="noteTextarea" rows="4" placeholder="Write your clinical note here..." style="width:100%; padding:12px; border-radius:8px; border:1px solid var(--border); background:var(--card); color:var(--text); font-family:inherit; font-size:14px; resize:vertical;"></textarea>
+          </div>
+          <button class="btn btn-primary" id="saveDoctorNoteBtn"><i class="fa-solid fa-floppy-disk"></i> Save Note</button>
+
+          <!-- Saved Notes List -->
+          <div id="savedNotesList" style="margin-top: 24px;"></div>
+        </article>
       </div>
 
       <div class="med-grid" id="medGrid"></div>
@@ -353,16 +399,17 @@
           <p class="muted">Professional printable patient report.</p>
         </div>
         <div class="actions-inline">
-          <button class="btn btn-outline"><i class="fa-solid fa-print"></i> Print</button>
-          <button class="btn btn-primary"><i class="fa-solid fa-download"></i> Download PDF</button>
+          <button class="btn btn-outline" onclick="window.print()"><i class="fa-solid fa-print"></i> Print</button>
+          <button class="btn btn-outline" id="downloadReportBtn"><i class="fa-solid fa-file-pdf"></i> Download PDF</button>
+          <button class="btn btn-primary" id="reportGenerateAIBtn"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate AI Summary</button>
         </div>
       </div>
 
-      <article class="card report fade-in">
+      <article class="card report fade-in" id="reportCard">
         <header class="report-head">
           <div>
             <h3>Patient Health Report</h3>
-            <p class="muted">Generated on June 28, 2026</p>
+            <p class="muted" id="reportGeneratedDate">Generated on —</p>
           </div>
           <div class="report-brand">
             <i class="fa-solid fa-heart-pulse"></i>
@@ -371,69 +418,54 @@
         </header>
 
         <div class="report-grid">
-          <div>
+          <!-- Panel 1: Patient Details -->
+          <div id="reportDetailsPanel">
             <h4>Patient Details</h4>
-            <p><strong>Name:</strong> Anita Sharma</p>
-            <p><strong>Age / Gender:</strong> 42 / Female</p>
-            <p><strong>Patient ID:</strong> RK-0921</p>
-            <p><strong>Phone:</strong> +91 98xxxxxx21</p>
+            <p class="muted">Loading...</p>
           </div>
-          <div>
+          <!-- Panel 2: Appointment History -->
+          <div id="reportAppointmentsPanel">
             <h4>Appointment History</h4>
-            <p>Jun 12, 2026 — Cardiology follow-up</p>
-            <p>May 04, 2026 — ECG review</p>
-            <p>Apr 18, 2026 — Initial consult</p>
+            <p class="muted">Loading...</p>
           </div>
-          <div>
+          <!-- Panel 3: Medication Schedule -->
+          <div id="reportMedicationsPanel">
             <h4>Medication Schedule</h4>
-            <p>Atorvastatin 10mg — Night</p>
-            <p>Metoprolol 25mg — Morning</p>
-            <p>Aspirin 75mg — Morning</p>
+            <p class="muted">Loading...</p>
           </div>
-          <div>
+          <!-- Panel 4: Compliance Statistics -->
+          <div id="reportCompliancePanel">
             <h4>Compliance Statistics</h4>
-            <div class="bar"><div class="bar-fill" style="width:87%"></div></div>
-            <p class="muted">Adherence 87% over 30 days</p>
+            <p class="muted">Loading...</p>
           </div>
         </div>
 
-        <div class="report-row">
-          <div class="chart-placeholder">
-            <i class="fa-solid fa-chart-line"></i>
-            <span>Heart Rate Trend</span>
-          </div>
-          <div class="chart-placeholder">
-            <i class="fa-solid fa-chart-column"></i>
-            <span>Medication Adherence</span>
-          </div>
+        <!-- AI Summary Section -->
+        <div class="report-section" id="reportAISummarySection" style="border-top: 1px solid var(--border); margin-top: 20px; padding-top: 16px;">
+          <h4><i class="fa-solid fa-wand-magic-sparkles" style="color:var(--primary);"></i> AI Summary</h4>
+          <p id="reportAISummaryText" class="muted">Click "Generate AI Summary" to produce an AI-driven health overview for this patient.</p>
+          <div id="reportRiskBadge" style="margin-top: 8px;"></div>
         </div>
 
-        <div class="report-section">
-          <h4>AI Summary</h4>
-          <p>Patient shows steady improvement with consistent adherence. Suggest continuing current dosage and a follow-up ECG in 4 weeks.</p>
+        <!-- Doctor Notes Section -->
+        <div class="report-section" id="reportDoctorNotesSection" style="border-top: 1px solid var(--border); margin-top: 16px; padding-top: 16px;">
+          <h4><i class="fa-solid fa-note-medical" style="color:var(--primary);"></i> Doctor Notes</h4>
+          <div id="reportDoctorNotesList"><p class="muted">No doctor notes on record.</p></div>
         </div>
-        <div class="report-section">
-          <h4>Doctor Notes</h4>
-          <p>BP stable at 128/82. Encourage daily 20-min walk. Review lipid panel at next visit.</p>
-        </div>
+
       </article>
     </section>
+
 
     <!-- ===== NOTIFICATIONS ===== -->
     <section id="section-notifications" class="page-section">
       <div class="section-head">
         <div>
-          <h2>Notifications</h2>
-          <p class="muted">Trigger sample notifications.</p>
+          <h2>Notifications & Alerts</h2>
+          <p class="muted">Live updates on your clinical schedules, appointments, and medication compliance.</p>
         </div>
       </div>
-      <article class="card fade-in pad">
-        <div class="actions-inline wrap">
-          <button class="btn btn-primary" onclick="showToast('success','Appointment Saved','Anita Sharma at 10:30 AM')"><i class="fa-solid fa-check"></i> Success</button>
-          <button class="btn btn-secondary" onclick="showToast('warning','Missed Medication','Aspirin 75mg — Ramesh')"><i class="fa-solid fa-triangle-exclamation"></i> Warning</button>
-          <button class="btn btn-danger" onclick="showToast('error','Server Error','Reminder failed to send')"><i class="fa-solid fa-circle-xmark"></i> Error</button>
-        </div>
-      </article>
+      <div id="notificationsList" style="max-width: 800px; margin: 0 auto;"></div>
     </section>
 
     <!-- ===== AI ===== -->
@@ -446,8 +478,35 @@
 
     <!-- ===== SETTINGS ===== -->
     <section id="section-settings" class="page-section">
-      <div class="section-head"><div><h2>Settings</h2><p class="muted">Manage your preferences.</p></div></div>
-      <article class="card pad fade-in"><p class="muted">Settings UI placeholder.</p></article>
+      <div class="section-head">
+        <div>
+          <h2>Settings</h2>
+          <p class="muted">Manage your patient profile and notification preferences.</p>
+        </div>
+      </div>
+      <article class="card pad fade-in" style="max-width: 500px; margin: 0 auto;">
+        <header class="card-head" style="margin-bottom: 20px;">
+          <div class="card-title">
+            <i class="fa-solid fa-user-gear icon-blue-soft"></i>
+            <h3>Profile Settings</h3>
+          </div>
+        </header>
+        <form id="profileSettingsForm" style="display: flex; flex-direction: column; gap: 20px;">
+          <div class="field">
+            <label for="settingsNameInput" style="font-weight: 600; font-size: 13px;">Full Name</label>
+            <input type="text" id="settingsNameInput" placeholder="Enter your full name" required style="width: 100%;" />
+          </div>
+          <div class="field">
+            <label for="settingsPhoneInput" style="font-weight: 600; font-size: 13px;">Phone Number (for SMS Alerts)</label>
+            <input type="tel" id="settingsPhoneInput" placeholder="e.g., +919848215798" required style="width: 100%;" />
+          </div>
+          <div style="margin-top: 8px;">
+            <button type="submit" class="btn btn-primary" id="saveSettingsBtn" style="width: 100%; justify-content: center; height: 42px;">
+              <i class="fa-solid fa-floppy-disk"></i> Save Profile Settings
+            </button>
+          </div>
+        </form>
+      </article>
     </section>
 
   </main>
@@ -498,6 +557,7 @@
     </header>
     <div class="modal-body">
       <form id="addMedicationForm">
+        <input type="hidden" id="medEditId" value="" />
         <div class="field mt">
           <label for="medPatientSelect">Patient Name</label>
           <select id="medPatientSelect" required>
@@ -514,22 +574,30 @@
           <label for="medDoseInput">Dosage</label>
           <input type="text" id="medDoseInput" placeholder="e.g., 10mg" required />
         </div>
+
         <div class="field mt">
-          <label for="medFreqSelect">Frequency</label>
-          <select id="medFreqSelect" required>
-            <option value="Once daily">Once daily</option>
-            <option value="Twice daily">Twice daily</option>
-            <option value="Three times daily">Three times daily</option>
-            <option value="As needed">As needed</option>
+          <label for="medScheduleSelect">Schedule Routine</label>
+          <select id="medScheduleSelect" required>
+            <option value="Morning">Morning-only</option>
+            <option value="Afternoon">Afternoon-only</option>
+            <option value="Night">Night-only</option>
+            <option value="Morning, Afternoon">Morning & Afternoon</option>
+            <option value="Morning, Night">Morning & Night</option>
+            <option value="Morning, Afternoon, Night">Morning, Afternoon & Night</option>
           </select>
-        </div>
-        <div class="field mt">
-          <label for="medScheduleInput">Schedule Times (comma-separated)</label>
-          <input type="text" id="medScheduleInput" placeholder="e.g., Morning, Night" required />
         </div>
         <div class="field mt">
           <label for="medPhoneInput">Patient Phone (for SMS notifications)</label>
           <input type="tel" id="medPhoneInput" placeholder="e.g., +919848215798" />
+        </div>
+        <div class="field mt">
+          <label for="medTimeInput">Schedule Message Time</label>
+          <input type="time" id="medTimeInput" />
+          <small style="color: var(--muted); font-size: 11px;">Leave empty to send immediately.</small>
+        </div>
+        <div class="field mt">
+          <label for="medDurationInput">Duration (Number of days to send reminders)</label>
+          <input type="number" id="medDurationInput" min="1" max="90" value="7" required />
         </div>
       </form>
     </div>
@@ -543,7 +611,8 @@
 <!-- ============= TOASTS ============= -->
 <div class="toast-container" id="toastContainer" aria-live="polite" aria-atomic="true"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="./config.js"></script>
-<script src="./script.js"></script>
+<script src="./script.js?v=21"></script>
 </body>
 </html>

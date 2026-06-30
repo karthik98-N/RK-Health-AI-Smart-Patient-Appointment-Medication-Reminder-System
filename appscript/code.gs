@@ -48,6 +48,14 @@ function doPost(e) {
     const data = JSON.parse(e.postData.contents);
     const action = data.action;
     
+    // Invalidate caches on mutation
+    if (["addAppointment", "addMedication", "medicationTaken", "deleteMedication", "updatePatient", "updateMedication"].includes(action)) {
+      try {
+        const cache = CacheService.getScriptCache();
+        cache.removeAll(["RK_HEALTH_patients", "RK_HEALTH_appointments", "RK_HEALTH_medications"]);
+      } catch(err) {}
+    }
+    
     if (action === "addAppointment") {
       return responseSuccess(addAppointment(data));
     } else if (action === "addMedication") {
@@ -76,6 +84,13 @@ function doPost(e) {
  * Retrieves tabular values from a sheet and converts them to a JSON array.
  */
 function getTableData(sheetName) {
+  const cache = CacheService.getScriptCache();
+  const cacheKey = "RK_HEALTH_" + sheetName;
+  try {
+    const cached = cache.get(cacheKey);
+    if (cached) return JSON.parse(cached);
+  } catch(e) {}
+
   const sheet = getSheet(sheetName);
   const values = sheet.getDataRange().getValues();
   if (values.length <= 1) return [];
@@ -89,6 +104,11 @@ function getTableData(sheetName) {
     }
     list.push(row);
   }
+  
+  try {
+    cache.put(cacheKey, JSON.stringify(list), 300); // 5 minutes TTL
+  } catch(e) {}
+  
   return list;
 }
 
@@ -226,10 +246,18 @@ function updateMedication(medId, data) {
  * Updates a patient's demographics and compliance score.
  */
 function updatePatient(patientId, data) {
-  const sheet = getSheet("patients");
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  
+  // 1. Update patient profile in 'patients' sheet
+  const sheet = ss.getSheetByName("patients");
   const values = sheet.getDataRange().getValues();
+  let oldName = "";
   for (let i = 1; i < values.length; i++) {
     if (values[i][0].toString() === patientId.toString()) {
+      oldName = values[i][1];
+      if (data.name) {
+        sheet.getRange(i + 1, 2).setValue(data.name);
+      }
       sheet.getRange(i + 1, 3).setValue(data.phone);
       sheet.getRange(i + 1, 4).setValue(data.age);
       sheet.getRange(i + 1, 5).setValue(data.gender);
@@ -237,6 +265,32 @@ function updatePatient(patientId, data) {
       break;
     }
   }
+
+  // 2. Propagate name update if it has changed
+  if (data.name && oldName && oldName.toLowerCase() !== data.name.toLowerCase()) {
+    // Update medications sheet
+    const medSheet = ss.getSheetByName("medications");
+    if (medSheet) {
+      const medValues = medSheet.getDataRange().getValues();
+      for (let i = 1; i < medValues.length; i++) {
+        if (medValues[i][1] && medValues[i][1].toLowerCase() === oldName.toLowerCase()) {
+          medSheet.getRange(i + 1, 2).setValue(data.name);
+        }
+      }
+    }
+
+    // Update appointments sheet
+    const apptSheet = ss.getSheetByName("appointments");
+    if (apptSheet) {
+      const apptValues = apptSheet.getDataRange().getValues();
+      for (let i = 1; i < apptValues.length; i++) {
+        if (apptValues[i][1] && apptValues[i][1].toLowerCase() === oldName.toLowerCase()) {
+          apptSheet.getRange(i + 1, 2).setValue(data.name);
+        }
+      }
+    }
+  }
+
   return { success: true, message: "Patient updated." };
 }
 

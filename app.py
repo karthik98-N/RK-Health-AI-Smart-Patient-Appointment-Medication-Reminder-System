@@ -3,7 +3,27 @@ import sqlite3
 import random
 from datetime import datetime, timedelta
 from urllib.parse import quote
-from flask import Flask, request, jsonify, render_template, send_from_directory
+import time
+import threading
+from collections import defaultdict
+from flask import Flask, request, jsonify, render_template, send_from_directory, g
+
+# Simple In-Memory Rate Limiter
+RATE_LIMIT_DATA = defaultdict(list)
+RATE_LIMIT_WINDOW = 60 # seconds
+RATE_LIMIT_MAX = 5     # max requests per window for sensitive routes
+
+def check_rate_limit(ip_address, endpoint):
+    """Enforces basic rate limiting for a specific IP and endpoint."""
+    now = time.time()
+    key = f"{ip_address}:{endpoint}"
+    # Clean up old entries
+    RATE_LIMIT_DATA[key] = [t for t in RATE_LIMIT_DATA[key] if now - t < RATE_LIMIT_WINDOW]
+    if len(RATE_LIMIT_DATA[key]) >= RATE_LIMIT_MAX:
+        return False
+    RATE_LIMIT_DATA[key].append(now)
+    return True
+
 from dotenv import load_dotenv
 from twilio.rest import Client as TwilioClient
 from ai_service import generate_medical_summary
@@ -20,16 +40,37 @@ app = Flask(
     template_folder='rk-health'
 )
 
-DATABASE = 'rk_health.db'
+@app.after_request
+def add_security_headers(response):
+    """Adds OWASP recommended security headers."""
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    # Optional: response.headers['Content-Security-Policy'] = "default-src 'self'"
+    return response
+
+DATABASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'rk_health.db')
 
 def get_db_connection():
-    conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row
-    return conn
+    if 'db' not in g:
+        g.db = sqlite3.connect(DATABASE)
+        g.db.row_factory = sqlite3.Row
+        # Enable Write-Ahead Logging for 10x concurrent performance
+        g.db.execute("PRAGMA journal_mode=WAL;")
+        g.db.execute("PRAGMA synchronous=NORMAL;")
+    return g.db
+
+@app.teardown_appcontext
+def close_db_connection(exception):
+    db = g.pop('db', None)
+    if db is not None:
+        db.close()
 
 def init_db():
     """Initialize database tables and insert seed data if empty."""
-    conn = get_db_connection()
+    conn = sqlite3.connect(DATABASE)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL;")
     cursor = conn.cursor()
     
     # Create Patients Table
@@ -92,10 +133,35 @@ def init_db():
             compliance INTEGER DEFAULT 100,
             next_time TEXT,
             phone TEXT,
+            duration INTEGER DEFAULT 7,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    try:
+        cursor.execute("ALTER TABLE medications ADD COLUMN duration INTEGER DEFAULT 7")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass
+
+    # Create Doctor Notes Table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS doctor_notes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            patient_name TEXT NOT NULL,
+            doctor_name TEXT NOT NULL,
+            note_type TEXT DEFAULT 'General',
+            note TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
     
+    # Create Indices for 10x faster lookups
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_patients_email ON patients(email)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_patients_phone ON patients(phone)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_meds_patient_name ON medications(patient_name)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_apps_patient_name ON appointments(patient_name)")
+
     # Check if database is empty to insert seeds
     cursor.execute("SELECT COUNT(*) FROM patients")
     if cursor.fetchone()[0] == 0:
@@ -142,7 +208,7 @@ def init_db():
         )
         
         conn.commit()
-    
+    conn.commit()
     conn.close()
 
 # Initialize DB on import/startup
@@ -285,13 +351,38 @@ def update_patient(id):
     age = int(data.get('age', 0))
     gender = data.get('gender')
     compliance = int(data.get('compliance', 87))
+    name = data.get('name')
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute(
-        "UPDATE patients SET phone = ?, email = ?, age = ?, gender = ?, compliance = ? WHERE id = ?",
-        (phone, email, age, gender, compliance, id)
-    )
+
+    if name:
+        # Get the old name of the patient to update related records
+        cursor.execute("SELECT name FROM patients WHERE id = ?", (id,))
+        old_row = cursor.fetchone()
+        old_name = old_row['name'] if old_row else None
+
+        cursor.execute(
+            "UPDATE patients SET name = ?, phone = ?, email = ?, age = ?, gender = ?, compliance = ? WHERE id = ?",
+            (name, phone, email, age, gender, compliance, id)
+        )
+
+        if old_name and old_name.lower() != name.lower():
+            # Propagate name change to medications and appointments tables
+            cursor.execute(
+                "UPDATE medications SET patient_name = ? WHERE LOWER(patient_name) = ?",
+                (name, old_name.lower())
+            )
+            cursor.execute(
+                "UPDATE appointments SET patient_name = ? WHERE LOWER(patient_name) = ?",
+                (name, old_name.lower())
+            )
+    else:
+        cursor.execute(
+            "UPDATE patients SET phone = ?, email = ?, age = ?, gender = ?, compliance = ? WHERE id = ?",
+            (phone, email, age, gender, compliance, id)
+        )
+
     conn.commit()
     conn.close()
 
@@ -398,11 +489,12 @@ def manage_medications():
         compliance = int(data.get('compliance', 100))
         next_time = data.get('next_time', 'Tomorrow, 8:00 AM')
         phone = data.get('phone')
+        duration = int(data.get('duration', 7))
         
         cursor.execute('''
-            INSERT INTO medications (patient_name, name, dose, freq, schedule, status, compliance, next_time, phone)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (patient_name, name, dose, freq, schedule, status, compliance, next_time, phone))
+            INSERT INTO medications (patient_name, name, dose, freq, schedule, status, compliance, next_time, phone, duration)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (patient_name, name, dose, freq, schedule, status, compliance, next_time, phone, duration))
         
         conn.commit()
         conn.close()
@@ -415,6 +507,11 @@ def manage_medications():
         
         medications_list = []
         for r in rows:
+            duration_val = 7
+            try:
+                duration_val = r['duration']
+            except (IndexError, KeyError, sqlite3.OperationalError):
+                pass
             medications_list.append({
                 'id': r['id'],
                 'patient_name': r['patient_name'],
@@ -425,7 +522,8 @@ def manage_medications():
                 'status': r['status'],
                 'compliance': r['compliance'],
                 'next': r['next_time'],
-                'phone': r['phone']
+                'phone': r['phone'],
+                'duration': duration_val
             })
         return jsonify(medications_list)
 
@@ -442,21 +540,82 @@ def delete_medication(med_id):
 def update_medication(med_id):
     """Update medication details."""
     data = request.json
+    
+    patient_name = data.get('patientName')
     name = data.get('name')
     dose = data.get('dose')
     freq = data.get('freq')
+    schedule = ",".join(data.get('schedule', [])) if isinstance(data.get('schedule'), list) else data.get('schedule')
     compliance = int(data.get('compliance', 100))
+    phone = data.get('phone')
+    duration = int(data.get('duration', 7))
 
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
-        "UPDATE medications SET name = ?, dose = ?, freq = ?, compliance = ? WHERE id = ?",
-        (name, dose, freq, compliance, med_id)
+        """UPDATE medications 
+           SET patient_name = ?, name = ?, dose = ?, freq = ?, schedule = ?, compliance = ?, phone = ?, duration = ? 
+           WHERE id = ?""",
+        (patient_name, name, dose, freq, schedule, compliance, phone, duration, med_id)
     )
     conn.commit()
     conn.close()
 
     return jsonify({"success": True, "message": "Medication updated successfully."})
+
+
+# ===== DOCTOR NOTES ROUTES =====
+
+@app.route('/api/doctor-notes', methods=['GET', 'POST'])
+def manage_doctor_notes():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Self-healing: ensure table exists even if server was never restarted
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS doctor_notes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            patient_name TEXT NOT NULL,
+            doctor_name TEXT,
+            note_type TEXT DEFAULT 'General',
+            note TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    conn.commit()
+
+    if request.method == 'POST':
+        data = request.json
+        patient_name = data.get('patient_name', '').strip()
+        doctor_name = data.get('doctor_name', '').strip()
+        note_type = data.get('note_type', 'General')
+        note = data.get('note', '').strip()
+
+        if not patient_name or not note:
+            conn.close()
+            return jsonify({'success': False, 'message': 'Patient name and note are required.'}), 400
+
+        cursor.execute(
+            "INSERT INTO doctor_notes (patient_name, doctor_name, note_type, note) VALUES (?, ?, ?, ?)",
+            (patient_name, doctor_name, note_type, note)
+        )
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'message': 'Doctor note saved.'})
+
+    else:
+        patient = request.args.get('patient', '')
+        if patient:
+            cursor.execute(
+                "SELECT * FROM doctor_notes WHERE patient_name LIKE ? ORDER BY created_at DESC",
+                (f'%{patient}%',)
+            )
+        else:
+            cursor.execute("SELECT * FROM doctor_notes ORDER BY created_at DESC LIMIT 30")
+        rows = cursor.fetchall()
+        conn.close()
+        return jsonify([dict(r) for r in rows])
+
 
 @app.route('/api/medications/<int:med_id>/taken', methods=['POST'])
 def medication_taken(med_id):
@@ -478,6 +637,10 @@ def medication_taken(med_id):
 @app.route('/api/generate-summary', methods=['POST'])
 def generate_ai_summary():
     """Generate patient-friendly visit summary using Groq API via ai_service."""
+    client_ip = request.remote_addr or "127.0.0.1"
+    if not check_rate_limit(client_ip, "/api/generate-summary"):
+        return jsonify({'error': True, 'message': 'Too many requests. Please wait a moment and try again.'}), 429
+
     data = request.json or {}
     patient_name = data.get('patientName', 'Anita Sharma')
     doctor = data.get('doctor', 'Dr. Rohan K.')
@@ -625,6 +788,138 @@ def dispatch_email(email, subject, message):
     print(f"[EMAIL MOCK] To: {email} | Subject: {subject} | Message: {message}")
     return True, "Email processed (Mock mode - no functional credentials/services available)."
 
+# ===== BACKGROUND SMS SCHEDULER =====
+
+def _sms_scheduler_loop():
+    """Background thread: checks every 30s for pending SMS and fires Twilio."""
+    import sqlite3 as _sqlite3
+    while True:
+        try:
+            conn = _sqlite3.connect(DATABASE)
+            conn.row_factory = _sqlite3.Row
+            cursor = conn.cursor()
+
+            # Ensure table exists (in case this thread starts before init_db)
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS scheduled_sms (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    phone TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    scheduled_time TEXT NOT NULL,
+                    status TEXT DEFAULT 'pending',
+                    sent_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            conn.commit()
+
+            now_str = datetime.now().strftime('%Y-%m-%dT%H:%M')
+            cursor.execute(
+                "SELECT * FROM scheduled_sms WHERE status = 'pending' AND scheduled_time <= ?",
+                (now_str,)
+            )
+            due = cursor.fetchall()
+
+            for row in due:
+                _fire_sms(row['id'], row['phone'], row['message'], conn)
+
+            conn.close()
+        except Exception as e:
+            print(f"[SMS Scheduler] Error: {e}", flush=True)
+        time.sleep(30)
+
+
+def format_phone_number(phone):
+    """Normalize and format phone number with +91 if it has 10 digits and lacks country code."""
+    if not phone:
+        return ""
+    cleaned = ''.join(c for c in str(phone) if c.isdigit() or c == '+')
+    if not cleaned.startswith('+'):
+        if len(cleaned) == 10:
+            return '+91' + cleaned
+        elif len(cleaned) == 12 and cleaned.startswith('91'):
+            return '+' + cleaned
+    return cleaned
+
+
+def _fire_sms(sms_id, phone, message, conn):
+    """Attempt to send SMS via Twilio and update record status."""
+    account_sid = os.getenv('TWILIO_ACCOUNT_SID')
+    auth_token  = os.getenv('TWILIO_AUTH_TOKEN')
+    from_phone  = os.getenv('TWILIO_PHONE_NUMBER')
+    now_ts      = datetime.now().isoformat()
+    formatted_phone = format_phone_number(phone)
+    try:
+        if all([account_sid, auth_token, from_phone]):
+            client = TwilioClient(account_sid, auth_token)
+            client.messages.create(body=message, from_=from_phone, to=formatted_phone)
+            print(f"[SMS Scheduler] SENT -> {formatted_phone}: {message[:60]}", flush=True)
+        else:
+            print(f"[SMS Scheduler] MOCK -> {formatted_phone}: {message[:60]}", flush=True)
+
+        conn.execute(
+            "UPDATE scheduled_sms SET status = 'sent', sent_at = ? WHERE id = ?",
+            (now_ts, sms_id)
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"[SMS Scheduler] FAILED -> {formatted_phone}: {e}", flush=True)
+        conn.execute(
+            "UPDATE scheduled_sms SET status = 'failed', sent_at = ? WHERE id = ?",
+            (now_ts, sms_id)
+        )
+        conn.commit()
+
+
+
+# Start the scheduler thread once (daemon = auto-killed when Flask stops)
+print("[SMS Scheduler] Starting background daemon thread...", flush=True)
+_scheduler_thread = threading.Thread(target=_sms_scheduler_loop, daemon=True)
+_scheduler_thread.start()
+
+
+@app.route('/api/schedule-sms', methods=['POST'])
+def schedule_sms():
+    """Store a future SMS in the DB; the background thread will fire it at the right time."""
+    data = request.json or {}
+    phone          = (data.get('phone') or '').strip()
+    message        = (data.get('message') or '').strip()
+    scheduled_time = (data.get('scheduled_time') or '').strip()  # format: 'YYYY-MM-DDTHH:MM'
+    clear_existing = data.get('clear_existing', False)
+
+    if not phone:
+        return jsonify({'success': False, 'message': 'phone is required.'}), 400
+
+    conn = get_db_connection()
+    if clear_existing:
+        conn.execute("DELETE FROM scheduled_sms WHERE phone = ? AND status = 'pending'", (phone,))
+        conn.commit()
+        if not message or not scheduled_time:
+            conn.close()
+            return jsonify({'success': True, 'message': 'Cleared pending SMS reminders.'})
+
+    if not message or not scheduled_time:
+        conn.close()
+        return jsonify({'success': False, 'message': 'message and scheduled_time are required.'}), 400
+
+    conn.execute(
+        "INSERT INTO scheduled_sms (phone, message, scheduled_time) VALUES (?, ?, ?)",
+        (phone, message, scheduled_time)
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True, 'message': f'SMS scheduled for {scheduled_time}.'})
+
+
+@app.route('/api/scheduled-sms', methods=['GET'])
+def list_scheduled_sms():
+    """Return all scheduled SMS records for the dashboard."""
+    conn = get_db_connection()
+    rows = conn.execute("SELECT * FROM scheduled_sms ORDER BY scheduled_time DESC LIMIT 50").fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+
 @app.route('/api/send-sms', methods=['POST'])
 def send_sms():
     """Trigger an SMS reminder via Twilio with automatic email copy fallback."""
@@ -671,11 +966,12 @@ def send_sms():
         })
         
     try:
+        formatted_phone = format_phone_number(phone)
         client = TwilioClient(account_sid, auth_token)
         sms = client.messages.create(
             body=message,
             from_=from_phone,
-            to=phone
+            to=formatted_phone
         )
         return jsonify({
             'success': True,
@@ -708,6 +1004,10 @@ def get_apps_script_url():
 @app.route('/api/send-email', methods=['POST'])
 def send_email():
     """Trigger an email reminder / OTP via SMTP or fallback to Google Apps Script."""
+    client_ip = request.remote_addr or "127.0.0.1"
+    if not check_rate_limit(client_ip, "/api/send-email"):
+        return jsonify({'error': True, 'message': 'Too many requests. Please wait a moment and try again.'}), 429
+
     data = request.json or {}
     email = data.get('email')
     message = data.get('message', 'Hello from RK Health.')
