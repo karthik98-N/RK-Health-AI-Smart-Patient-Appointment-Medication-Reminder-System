@@ -36,7 +36,8 @@ async function fetchAPI(endpoint, method = 'GET', body = null) {
   }
 
   let result;
-  if (APPS_SCRIPT_URL && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+  const useAppsScript = (typeof USE_LOCAL_API !== 'undefined' && USE_LOCAL_API) ? false : (APPS_SCRIPT_URL && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1');
+  if (useAppsScript) {
     if (method === 'GET') {
       const action = endpoint.split('/').pop(); // 'patients', 'medications', or 'appointments'
       const response = await fetch(`${APPS_SCRIPT_URL}?action=${action}`);
